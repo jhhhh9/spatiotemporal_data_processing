@@ -12,7 +12,7 @@ class CellGenerator():
         Initializes the arguments important for the creation of the 
         spatiotemporal 3D cells 
         
-        Inputs:
+        Args:
             bounding_box_coords: (list of floats) Four coordinates representing 
                                   the min lat, min lng, max lat and max lng. 
                                   These represent the bounding box for the 
@@ -88,19 +88,19 @@ class CellGenerator():
                     cell_id = str(i) + "_" + str(j) + "_" + str(k)
                     s_centroid = self.__get_scaled_s(all_lat[i], all_lng[j])
                     t_centroid = self.__get_scaled_t(all_timestamp[k])
-                    cell_count = 0 
+                    hit_count = 0 
                     cell_dict = {"cell_id" : cell_id, 
                                  "lat_range" : all_lat[i],
                                  "lng_range" : all_lng[j],
                                  "s_centroid" : s_centroid,
                                  "timestamp_range" : all_timestamp[k],
                                  "t_centroid" : t_centroid,
-                                 "cell_count" : cell_count}
+                                 "hit_count" : hit_count}
                     grid_lng.append(cell_dict) 
                 grid_lat.append(grid_lng)
             all_grids.append(grid_lat)
         all_grids = np.array(all_grids)
-        return [all_grids, all_lat, all_lng, all_timestamp]
+        return all_grids
             
         
     def __get_scaled_s(self, lat_pair, lng_pair):
@@ -108,9 +108,14 @@ class CellGenerator():
         Given a pair of latitudes and a pair of longitudes, get the centroid of 
         that area and scale the centroid coordinates to range 0 to 1.
         
-        Inputs:
+        Args:
             lat_pair: (tuple of floats) A pair of latitudes 
             lng_pair: (tuple of floats) A pair of longitudes 
+            
+        Returns: 
+            A list of two items: scaled_lat, and scaled lng. These two represent
+            the centroid of the four arg points. The coordinates of the 
+            centroids are scaled to the range between 0 to 1. 
         """
         lat = sum(lat_pair) / len(lat_pair)
         lng = sum(lng_pair) / len(lng_pair)
@@ -124,8 +129,12 @@ class CellGenerator():
         Given a pair of timestamps (in minutes per day), get the middle point 
         and scale it to range 0 to 1. 
         
-        Inputs:
+        Args:
             time_pair: (tuple of integers) A pair of minutes in a day 
+            
+        Returns:
+            A float representing the midpoint of the input pair of minutes. 
+            This is scaled to the range 0 to 1. 
         """
         center = (time_pair[1] + time_pair[0]) / 2
         scaled_center = center / self.__MINUTES_IN_A_DAY
@@ -136,9 +145,14 @@ class CellGenerator():
         """
         Adds some meters to the given latitude 
         
-        Inputs:
+        Args:
             coordinates : (tuple of floats) Latitude and longitude 
             meters      : (integer) How many meters you want to add 
+            
+        Returns:
+            A float representing the new latitude after having the provided 
+            amount of meters added to it. Addition means increasing the 
+            latitude, i.e. moving the point north. 
         """
         [lat, lng] = coordinates 
         lat_add = meters * self.__M 
@@ -150,9 +164,14 @@ class CellGenerator():
         """
         Adds some meters to the given latitude 
         
-        Inputs:
+        Args:
             coordinates : (tuple of floats) Latitude and longitude 
             meters      : (integer) How many meters you want to add 
+            
+        Returns:
+            A float representing the new longitude after having the provided 
+            amount of meters added to it. Addition means increasing the 
+            longitude, i.e. moving the point east. 
         """
         [lat, lng] = coordinates 
         lng_add = (meters * self.__M) / math.cos(lat * (math.pi / 180))
