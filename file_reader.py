@@ -57,6 +57,7 @@ class FileReader():
                                      max_trajectory_length))
         else:
             raise ValueError("'" + dataset_mode + "' not supported.")
+        in_file.close()
     
 
     def __read_porto(self, in_file, min_trajectory_length, 
@@ -80,7 +81,6 @@ class FileReader():
         all_traj = []
         for line in in_file:
             trajectory = ast.literal_eval(line.split('","')[-1].replace('"',''))
-            
             # Only process the trajectory further if it's not too long or too 
             # short 
             if (len(trajectory) <= max_trajectory_length and 
@@ -96,7 +96,6 @@ class FileReader():
                 # timestamp 
                 new_traj = self.__check_point_and_add_timestamp(trajectory, 
                                                                 start_second)
-
                 # The new trajectory may be shorter because points outside of 
                 # the area are removed. If it is now shorter, we ignore it 
                 if (len(new_traj) >= min_trajectory_length):
@@ -112,7 +111,7 @@ class FileReader():
         lat and lng, because the raw Porto data has the longitude first. 
         
         Args:
-            trajectory: (list) List of list of latitude and longitude points 
+            trajectory: (list) List of list of longitude and latitude points 
             start_second: (integer) The second-in-the-day where the trajectory 
                           starts
                           

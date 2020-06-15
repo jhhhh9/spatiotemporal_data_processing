@@ -94,7 +94,7 @@ class CellProcessor():
             all_topk_dist.append(topk_dist[1:])
         all_topk_id = np.array(all_topk_id)
         all_topk_dist = np.array(all_topk_dist)
-        all_topk_dist = self.__convert_dist_to_weight(all_topk_dist, 0.3)
+        all_topk_dist = self.__convert_dist_to_weight(all_topk_dist)
         return [all_topk_id, all_topk_dist]
         
         

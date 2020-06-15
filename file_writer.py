@@ -3,6 +3,7 @@
 import h5py 
 import numpy as np 
 import pathlib 
+import shutil 
 
 class FileWriter():
     """
@@ -84,3 +85,16 @@ class FileWriter():
             f.write("Dataset contents: 'topk_id', 'topk_weight'")
             f.write("\ntopk_id shape: " + str(topk_id.shape))
             f.write("\ntopk_weight shape: " + str(topk_weight.shape))
+            
+            
+    def copy_ini_file(self, ini_path, output_directory):
+        """
+        Copies the input .ini file to the output directory 
+        
+        Args:
+            ini_path: (string) The path to the .ini file 
+            output_directory: (string) The output directory 
+        """ 
+        fname = ini_path.split("/")[-1]
+        output_path = pathlib.Path(output_directory) / (fname)
+        shutil.copyfile(ini_path, output_path)

@@ -315,7 +315,7 @@ class TrajProcessor():
         for traj_point in trajectory:
             [grid_data, cell_id] = self.__grid_traj_point(traj_point, all_cells)
             traj_point_ = copy.deepcopy(traj_point)
-            new_traj_point = [cell_id, traj_point, grid_data]
+            new_traj_point = [cell_id, traj_point_, grid_data]
             traj_data.append(new_traj_point)
         return traj_data 
             
@@ -393,13 +393,14 @@ class TrajProcessor():
                 assert False, ("Timestamp doesn't change in binary search. " +
                                "Possible infinite loop.")
             time_cur = time_new
-        
+            
         # If the code reaches this point, we found the cell. 
         # Update the cell count in all_cells and return the lat, lng, timestamp 
         # indices alongside the ID of the cell 
         hit_count = all_cells[lat_cur][lng_cur][time_cur]['hit_count']
         cell_ID = all_cells[lat_cur][lng_cur][time_cur]['cell_id']
         all_cells[lat_cur][lng_cur][time_cur]['hit_count'] = hit_count + 1
+        
         return [[lat_cur, lng_cur, time_cur], cell_ID]
         
         
@@ -547,7 +548,7 @@ class TrajProcessor():
         downsampled_trajs = []
         for num_point in nums_point:
             # There are two unique cases to handle. 
-            if num_point + 2 == len(trajectory):
+            if num_point + 2 >= len(trajectory):
                 # One unique case is when we want to keep all points, (i.e. 
                 # when one num_point + 2 equals len of traj) in which we keep 
                 # all points. 
@@ -562,7 +563,7 @@ class TrajProcessor():
                 trajectory_ = copy.deepcopy(trajectory)
                 rand_indices = random.sample(range(1, len(trajectory_)-1),
                                              num_point)
-                rand_indices.sort() 
+                rand_indices.sort()
                 downsampled_traj = [trajectory_[i] for i in rand_indices]
                 
                 # Don't forget to add the first and last points 

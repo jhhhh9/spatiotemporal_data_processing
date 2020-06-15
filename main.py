@@ -23,11 +23,11 @@ def main():
     # Generate the spatiotemporal cells 
     print("Generating spatiotemporal cells")
     bounding_box_coords = arg_processor.bounding_box_coords 
-    spatial_grid_length = arg_processor.spatial_grid_length
-    spatial_grid_width = arg_processor.spatial_grid_width
+    spatial_grid_lat = arg_processor.spatial_grid_lat
+    spatial_grid_lng = arg_processor.spatial_grid_lng
     temporal_grid_length = arg_processor.temporal_grid_length
-    cell_generator = CellGenerator(bounding_box_coords, spatial_grid_length,
-                                   spatial_grid_width, temporal_grid_length)
+    cell_generator = CellGenerator(bounding_box_coords, spatial_grid_lat,
+                                   spatial_grid_lng, temporal_grid_length)
     all_grids = cell_generator.generate_spatiotemporal_cells() 
     
     # Reads the input .csv file 
@@ -65,7 +65,6 @@ def main():
     hot_cells_threshold = arg_processor.hot_cells_threshold
     hot_cells = cell_processor.get_hot_cells(all_grids, hot_cells_threshold)
     
-    
     # Getting the top-k closest cells for each cell 
     print("Getting top-k cells")
     k = arg_processor.k
@@ -95,6 +94,8 @@ def main():
                            output_directory, seed)
     writer.write_topk(topk_id, topk_weight, "topk", output_directory)
     
+    # Finally, create a copy of the .ini file to the output directory
+    writer.copy_ini_file(ini_path, output_directory)
     
 if __name__ == "__main__":
     start_dt = datetime.datetime.now()

@@ -34,8 +34,8 @@ class ArgProcessor():
         
         self.bounding_box_coords = ast.literal_eval(config['GRID']
                                                           ['BoundingBoxCoords'])
-        self.spatial_grid_length = int(config['GRID']['SpatialGridLength'])
-        self.spatial_grid_width = int(config['GRID']['SpatialGridWidth'])
+        self.spatial_grid_lat = int(config['GRID']['SpatialGridLat'])
+        self.spatial_grid_lng = int(config['GRID']['SpatialGridLng'])
         self.temporal_grid_length = int(config['GRID']['TemporalGridLength'])
         self.k = int(config['GRID']['k'])
         

@@ -6,8 +6,8 @@ import numpy as np
 class CellGenerator(): 
     """This class handles the generation of spatiotemporal cells"""
     
-    def __init__(self, bounding_box_coords, spatial_grid_length,
-                 spatial_grid_width, temporal_grid_length):
+    def __init__(self, bounding_box_coords, spatial_grid_lat,
+                 spatial_grid_lng, temporal_grid_length):
         """
         Initializes the arguments important for the creation of the 
         spatiotemporal 3D cells 
@@ -17,18 +17,18 @@ class CellGenerator():
                                   the min lat, min lng, max lat and max lng. 
                                   These represent the bounding box for the 
                                   entire area of interest 
-            spatial_grid_length: (integer) The length (in meters) of every 
-                                 spatial cell 
-            spatial_grid_width: (integer) The width (in meters) of every spatial 
-                                 cell 
+            spatial_grid_lat: (integer) The lat (y-axis) length (in meters) of 
+                               every spatial cell 
+            spatial_grid_lng: (integer) The lng (x-axis) length (in meters) of 
+                               every spatial cell 
             temporal_grid_length: (integer) The length (in minutes) of each 
                                   temporal segment 
         """
         self.bounding_box_coords = bounding_box_coords
         [self.min_lat, self.min_lng, 
          self.max_lat, self.max_lng] = self.bounding_box_coords
-        self.spatial_grid_length = spatial_grid_length
-        self.spatial_grid_width = spatial_grid_width
+        self.spatial_grid_lat = spatial_grid_lat
+        self.spatial_grid_lng = spatial_grid_lng
         self.temporal_grid_length = temporal_grid_length
         
         # Constants for later calculations 
@@ -42,15 +42,9 @@ class CellGenerator():
         Generates the spatiotemporal cells
         
         Returns: 
-            A list of four elements:
-            - all_grids: (3D numpy array) All the spatiotemporal grid cells. 
-                         Each cell is represented by a dict that stores the 
-                         information for that cell
-            - all_lat: (list) List of all latitude ranges 
-            - all_lng: (list) List of all longitude ranges 
-            - all_timestamp: (list) List of all timestamp ranges 
+            All the spatiotemporal grid cells stored in a numpy array. Each cell is 
+            represented by a dict that stores the information for that cell. 
         """
-        
         # Generate all possible lat and lng and timestamp
         # For simplicity, we use the min_lat in the lng calculation. 
         # Lng calculations require the latitude as well for it to be accurate.
@@ -65,12 +59,12 @@ class CellGenerator():
         all_timestamp = []
         while cur_lat < self.max_lat:
             next_lat = self.__add_lat([cur_lat, self.min_lng], 
-                                      self.spatial_grid_length)
+                                      self.spatial_grid_lat)
             all_lat.append((cur_lat, next_lat))
             cur_lat = next_lat 
         while cur_lng < self.max_lng:
             next_lng = self.__add_lng([self.min_lat, cur_lng], 
-                                      self.spatial_grid_width)
+                                      self.spatial_grid_lng)
             all_lng.append((cur_lng, next_lng))
             cur_lng = next_lng 
         while cur_time < self.__MINUTES_IN_A_DAY:
