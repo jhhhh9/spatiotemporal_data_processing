@@ -6,6 +6,7 @@ for the deep neural network model training
 from shapely.geometry import Point
 from shapely.geometry import Polygon 
 import copy
+import decimal
 import math
 import numpy as np 
 import random   
@@ -139,7 +140,7 @@ class TrajProcessor():
         return new_all_traj_pairs
         
 
-    def split_and_process_dataset(self, all_traj_pairs, split):
+    def split_and_process_dataset(self, all_traj_pairs, num_data):
         """
         Splits all the trajectories to the training, validation, and test 
         split. The training and validation set are processed differently 
@@ -148,19 +149,35 @@ class TrajProcessor():
         Args:
             all_traj_pairs: (list) List of all ground truth, query trajectory 
                              pairs 
-            split: (list) A list of three integers representing the percentage 
-                    of the training, validation, and test set. 
+            num_data: (list) A list of either integers or decimals. If used, 
+                       integer specifies the actual number of data for each 
+                       split, while the decimal specifies the fraction of data 
+                       (from the full dataset) to be used for each split. 
+            
         """
         # Get num of data for each split 
+        # First is to handle the integer case. If the total number of data 
+        # exceeds the total trajectory, default to a [70, 20, 10] split. 
         total_traj = len(all_traj_pairs)
-        num_train = round(split[0] * total_traj / 100)
-        num_val = round(split[1] * total_traj / 100)
+        if all(isinstance(x, int) for x in num_data):
+            if sum(num_data) > total_traj:
+                print("WARNING! Total number of data exceeds total number of " +
+                      "trajectory! Defaulting to a [70, 20, 10] split")
+                num_data = [decimal.Decimal('0.7'), decimal.Decimal('0.2'),
+                            decimal.Decimal('0.1')]
+            else:
+                [num_train, num_val, num_test] = num_data
+        if all(isinstance(x, decimal.Decimal) for x in num_data):    
+            num_train = round(num_data[0] * total_traj)
+            num_val = round(num_data[1] * total_traj)
+            num_test = round(num_data[2] * total_traj)
         
         # Randomize and split the data 
         random.shuffle(all_traj_pairs)
         train_pairs = all_traj_pairs[:num_train]
         val_pairs = all_traj_pairs[num_train : num_train + num_val]
-        test_pairs = all_traj_pairs[num_train + num_val:]
+        test_pairs = all_traj_pairs[num_train + num_val: \
+                                    num_train + num_val + num_test]
         
         # Process the training and validation data 
         train_processed = self.__process_training_data(train_pairs)
@@ -422,8 +439,8 @@ class TrajProcessor():
         trajectory_ = copy.deepcopy(trajectory) 
         
         # We get only the relevant ranges within all_ranges_
-        start_time_id = trajectory_[0][2][2]
-        end_time_id = trajectory_[-1][2][2]
+        start_time_id = trajectory_[0][1][2]
+        end_time_id = trajectory_[-1][1][2]
         
         def __binary_search(all_ranges, val):
             i_cur = int(len(all_ranges) / 2)
@@ -481,7 +498,7 @@ class TrajProcessor():
         all_patterns = [[] for x in relevant_ranges]
         for i in range(len(relevant_ranges)):
             for point in trajectory_:
-                if point[2][2] in relevant_ranges[i]:
+                if point[1][2] in relevant_ranges[i]:
                     all_patterns[i].append(point[1])
         
         # Patterns assigned, now to find the features 

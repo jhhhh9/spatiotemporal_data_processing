@@ -3,6 +3,7 @@
 from math import ceil 
 import ast
 import configparser
+import decimal 
 import os 
 
 class ArgProcessor():
@@ -22,7 +23,7 @@ class ArgProcessor():
         self.input_file_path = config['GENERAL']['InputFilePath']
         self.output_directory = config['GENERAL']['OutputDirectory']
         self.dataset_mode = config['GENERAL']['DatasetMode'].lower() 
-        self.split = ast.literal_eval(config['GENERAL']['Split'])
+        self.num_data = ast.literal_eval(config['GENERAL']['NumData'])
         self.seed = int(config['GENERAL']['Seed'])
         
         self.min_trajectory_length = int(config['PRUNING']
@@ -80,8 +81,27 @@ class ArgProcessor():
             if x >= 1 or x < 0:
                 raise ValueError('One or more values in point_drop_rates ' +
                                  'are not between 0 and 1')
-        if not sum(self.split) == 100:
-            raise ValueError('The values in "split" does not add up to 100.')
+        
+        # Checking the correctness of self.num_data. First, check the len 
+        if len(self.num_data) != 3:
+            raise ValueError("NumData can only contain 3 values. They must " + 
+                             "all be integers or floats")
+        
+        # If self.num_data all contains all integers, simply get the sum 
+        if all(isinstance(x, int) for x in self.num_data):
+            self.sum_data = sum(self.num_data)
+        # If self.num_data all contains floats, we need to verify if they all 
+        # sum up to 1 
+        elif all(isinstance(x, float) for x in self.num_data):
+            # Use decimal instead of float to avoid issues with float precision
+            self.num_data = [decimal.Decimal(str(self.num_data[i])) \
+                             for i in range(len(self.num_data))]
+            if not sum(self.num_data) == 1:
+                raise ValueError('The fraction values in "NumData" does not ' +
+                                 'add up to 100.')
+        else:
+            raise ValueError("The values in NumData must all be either " + 
+                             "floats or integers")
                                  
         # Check data mode validity 
         self.dataset_modes = ['porto']

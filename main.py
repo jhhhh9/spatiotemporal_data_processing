@@ -77,9 +77,9 @@ def main():
     
     # Split the data to train, validation, and test set 
     print("Splitting dataset to train, validation, and test set") 
-    split = arg_processor.split
+    num_data = arg_processor.num_data
     split_data = traj_processor.split_and_process_dataset(all_traj_pairs,
-                                                          split)
+                                                          num_data)
     [train_data, val_data, test_data] = split_data
     
     # Write to the output files 
