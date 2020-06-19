@@ -77,25 +77,33 @@ def main():
     
     # Split the data to train, validation, and test set 
     print("Splitting dataset to train, validation, and test set") 
-    num_data = arg_processor.num_data
-    split_data = traj_processor.split_and_process_dataset(all_traj_pairs,
-                                                          num_data)
-    [train_data, val_data, test_data] = split_data
+    all_num_data = arg_processor.all_num_data
     
-    # Write to the output files 
-    print("Writing to output files") 
-    writer = FileWriter()
-    output_directory = arg_processor.output_directory
-    writer.write_train_data(train_data[0], train_data[1], "training", 
-                            output_directory, seed)
-    writer.write_train_data(val_data[0], val_data[1], "validation", 
-                            output_directory, seed)
-    writer.write_test_data(test_data[0], test_data[1], "test", 
-                           output_directory, seed)
-    writer.write_topk(topk_id, topk_weight, "topk", output_directory)
-    
-    # Finally, create a copy of the .ini file to the output directory
-    writer.copy_ini_file(ini_path, output_directory)
+    for i in range(len(all_num_data)):
+        num_data = all_num_data[i]
+        split_data = traj_processor.split_and_process_dataset(all_traj_pairs,
+                                                              num_data)
+        [train_data, val_data, test_data] = split_data
+        
+        # Write to the output files 
+        print("Writing to output files") 
+        writer = FileWriter()
+        output_directory = arg_processor.output_directory
+        train_name = str(i+1) + "_training"
+        validation_name = str(i+1) + "_validation"
+        test_name = str(i+1) + "_test"
+        topk_name = str(i+1) + "_topk"
+        
+        writer.write_train_data(train_data[0], train_data[1], train_name, 
+                                output_directory, seed)
+        writer.write_train_data(val_data[0], val_data[1], validation_name, 
+                                output_directory, seed)
+        writer.write_test_data(test_data[0], test_data[1], test_name, 
+                               output_directory, seed)
+        writer.write_topk(topk_id, topk_weight, topk_name, output_directory)
+        
+        # Finally, create a copy of the .ini file to the output directory
+        writer.copy_ini_file(ini_path, output_directory)
     
 if __name__ == "__main__":
     start_dt = datetime.datetime.now()
