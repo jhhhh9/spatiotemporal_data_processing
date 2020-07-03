@@ -72,8 +72,10 @@ def main():
     [topk_id, topk_weight] = cell_processor.get_top_k_cells(centroids, k)
     
     # Second loop through the dataset 
+    min_query_length =round((1 - max(point_drop_rates)) * min_trajectory_length)
     all_traj_pairs = traj_processor.second_loop(all_traj_pairs, key_lookup_dict,
-                                                min_trajectory_length)
+                                                min_trajectory_length,
+                                                min_query_length)
     
     # Split the data to train, validation, and test set 
     print("Splitting dataset to train, validation, and test set") 
@@ -82,7 +84,7 @@ def main():
     for i in range(len(all_num_data)):
         num_data = all_num_data[i]
         split_data = traj_processor.split_and_process_dataset(all_traj_pairs,
-                                                              num_data)
+                                                                num_data)
         [train_data, val_data, test_data] = split_data
         
         # Write to the output files 

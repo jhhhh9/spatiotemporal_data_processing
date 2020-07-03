@@ -57,7 +57,7 @@ class ArgProcessor():
         
         # If the output_directory does not exist, create it 
         if not os.path.exists(self.output_directory):
-            os.mkdir(output_directory)
+            os.mkdir(self.output_directory)
         
         # Check numeric values 
         if self.min_trajectory_length > self.max_trajectory_length:

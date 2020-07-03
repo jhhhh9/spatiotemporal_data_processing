@@ -100,13 +100,15 @@ class TrajProcessor():
 
 
     def second_loop(self, all_traj_pairs, key_lookup_dict, 
-                    min_trajectory_length):
+                    min_gt_length , min_q_length):
         """
         The second loop is much simpler; it only performs three tasks for each 
         ground truth and query trajectories:
         
         1. Remove the cells if the do not belong to the hot cells list 
-        2. After step 1, if the trajectory is now too short, remove it
+        2. After step 1, if the trajectory is now too short, remove it. Ground 
+           truth and query trajectories have a different minimum length, with 
+           the query minimum length being smaller. 
         3. Replace the cell ID of each trajectory point with an integer 
            specified in key_lookup_dict
 
@@ -115,9 +117,11 @@ class TrajProcessor():
                              pairs 
             key_lookup_dict: (dict) A dictionary to map the old cell IDs to the 
                               new, integer-based one. 
-            min_trajectory_length: (integer) The minimum trajectory length. 
-                                    Any trajectory shorter than this will be 
-                                    removed. 
+            min_gt_length: (integer) The minimum GT trajectory length. Any GT 
+                                     trajectory shorter than this will be 
+                                     removed. 
+            min_q_length: (integer) The minimum Q trajectory length. Any q 
+                                    trajectory shorter than this will be removed
                                     
         Returns:
             All the trajectory pairs after being processed.
@@ -131,20 +135,25 @@ class TrajProcessor():
             
             # Only process the query trajectories if the ground truth is not 
             # too short. 
-            if len(new_gt) >= min_trajectory_length:
+            if len(new_gt) >= min_gt_length:
                 new_q = []
                 for q in all_q:
                     q_ = self.__remove_non_hot_cells(q, key_lookup_dict)
-                    new_q.append(q_)
-                new_all_traj_pairs.append([[new_gt, np.array(gt[1])], new_q])
+                    if len(q_) >= min_q_length: 
+                        new_q.append(q_)
+                if len(new_q) > 0:
+                    new_all_traj_pairs.append([[new_gt, np.array(gt[1])], new_q])
         return new_all_traj_pairs
         
-
+        
     def split_and_process_dataset(self, all_traj_pairs, num_data):
         """
         Splits all the trajectories to the training, validation, and test 
         split. The training and validation set are processed differently 
-        compared to the test set. 
+        compared to the test set. This modified version selects data based on 
+        the number of query trajectories instead of the ground truth. This means 
+        that given a ground truth, not all of its matching queries will be part 
+        of the same dataset. 
         
         Args:
             all_traj_pairs: (list) List of all ground truth, query trajectory 
@@ -153,12 +162,22 @@ class TrajProcessor():
                        integer specifies the actual number of data for each 
                        split, while the decimal specifies the fraction of data 
                        (from the full dataset) to be used for each split. 
-            
         """
+        # A ground truth is associated with one or more queries. This messes 
+        # up the calculation of the actual pairs. Here, we "flatten" them 
+        # first by creating a pair for every ground truth and query 
+        flattened_pairs = []
+        id = 0 
+        for one_pair in all_traj_pairs:
+            [[gt, gt_patt], q] = copy.deepcopy(one_pair)
+            for one_q in q:
+                flattened_pairs.append([id, [gt, gt_patt, one_q]])
+            id += 1
+        
         # Get num of data for each split 
         # First is to handle the integer case. If the total number of data 
         # exceeds the total trajectory, default to a [70, 20, 10] split. 
-        total_traj = len(all_traj_pairs)
+        total_traj = len(flattened_pairs)
         if all(isinstance(x, int) for x in num_data):
             if sum(num_data) > total_traj:
                 print("WARNING! Total number of data exceeds total number of " +
@@ -173,10 +192,10 @@ class TrajProcessor():
             num_test = round(num_data[2] * total_traj)
         
         # Randomize and split the data 
-        random.shuffle(all_traj_pairs)
-        train_pairs = all_traj_pairs[:num_train]
-        val_pairs = all_traj_pairs[num_train : num_train + num_val]
-        test_pairs = all_traj_pairs[num_train + num_val: \
+        random.shuffle(flattened_pairs)
+        train_pairs = flattened_pairs[:num_train]
+        val_pairs = flattened_pairs[num_train : num_train + num_val]
+        test_pairs = flattened_pairs[num_train + num_val: \
                                     num_train + num_val + num_test]
         
         # Process the training and validation data 
@@ -196,15 +215,19 @@ class TrajProcessor():
         1. Ground truth trajectory. ONLY keep the ID. 
         2. Query trajectory. ONLY keep the ID
         3. Negative sample trajectory. ONLY keep the ID 
-        4. Target output length 
-        5. Target pattern output length 
+        4. Target pattern output (spatial)
+        5. Target pattern output (temporal) 
         
         y: 
         1. Ground truth trajectory. ONLY keep the ID 
-        2. Target pattern output. 
+        2. Target pattern output (spatial). 
+        3. Target pattern output (temporal). 
         
         Args:
-            all_pairs: (list) List of all ground truth-query trajectory pairs 
+            all_pairs: (list) List of all ground truth-query trajectory pairs.
+                        It's a list of pairs where each pair consists of the 
+                        ground truth trajectory, ground truth pattern features, 
+                        and the query 
             
         Returns:
             A numpy array for the whole dataset that contains the data as 
@@ -213,28 +236,21 @@ class TrajProcessor():
         all_x = []
         all_y = []
         for one_pair in all_pairs:
-            [[gt, gt_patt], q] = one_pair 
-            a_gt = copy.deepcopy(gt)
-            a_gt = self.__keep_id_only(a_gt)
+            [_, [gt, gt_patt, q]] = one_pair 
+            gt = self.__keep_id_only(gt)
+            gt_patt_s = np.array([np.array(x[[0]]) for x in gt_patt])
+            gt_patt_t = np.array([np.array(x[[1]]) for x in gt_patt])
+            q = self.__keep_id_only(q)
             
-            # Get the negative data by randomly sampling from all_pairs 
-            # Then, form the five data components mentioned. 
-            all_neg = []
-            for i in range(len(q)):
-                # Form the x
-                a_neg = copy.deepcopy(random.choice(all_pairs)[1][i])
-                a_neg = self.__keep_id_only(a_neg)
-                a_q = copy.deepcopy(np.array(q[i]))
-                a_q = self.__keep_id_only(a_q)
-                one_x = np.array([a_gt, a_q, a_neg, len(gt), len(gt_patt)])
-                
-                # And the y 
-                a_gt_patt = np.array([np.array(x) for x in gt_patt])
-                one_y = np.array([a_gt, a_gt_patt])
-                
-                # And then append 
-                all_x.append(one_x)
-                all_y.append(one_y)
+            # Sample a random ground truth trajectory for the negative sample
+            neg = copy.deepcopy(random.choice(all_pairs)[1][0])
+            neg = self.__keep_id_only(neg)
+            
+            # Form the X and then y and then append  
+            one_x = np.array([gt, q, neg, gt_patt_s, gt_patt_t])
+            one_y = np.array([gt, gt_patt_s, gt_patt_t])
+            all_x.append(one_x)
+            all_y.append(one_y)
         return [np.array(all_x), np.array(all_y)]
         
 
@@ -252,24 +268,35 @@ class TrajProcessor():
             ground truth trajectories and the second is a list of all query 
             trajectories 
         """
-        all_gt = []
+        # Since a ground truth may have multiple queries associated with it, 
+        # there may be duplicate ground truths. We have to eliminate th 
+        # duplicates while ensuring that the associated query is still matched 
+        # to the correct ground truth 
+        gt_dict = {}
         all_q = []
-        for i in range(len(all_pairs)):
-            one_pair = all_pairs[i]
-            [[gt, _], q] = one_pair 
+        all_gt = []
+        
+        # Process and then append ground truth 
+        for pair in all_pairs:
+            [id, [gt, _, q]] = pair 
             
-            # Process and then append ground truth 
-            a_gt = copy.deepcopy(gt)
-            a_gt = self.__keep_id_only(a_gt)
-            all_gt.append(np.array([str(i), a_gt]))
+            # Check if all_gt contains the ground truth trajectory.
+            # If no, add to all_gt. If yes, get the ID 
+            if str(gt) in gt_dict:
+                # Cannot use list as a dict key, just convert to str 
+                cur_id = gt_dict[str(gt)]
+            else:
+                gt_dict[str(gt)] = id 
+                cur_id = id 
             
-            # Process and then append queries 
-            for one_q in q:
-                a_q = copy.deepcopy(np.array(one_q))
-                a_q = self.__keep_id_only(a_q)
-                all_q.append(np.array([str(i), a_q]))
+            # Keep only the IDs 
+            gt = self.__keep_id_only(copy.deepcopy(gt))
+            q = self.__keep_id_only(copy.deepcopy(q)) 
+            all_gt.append(np.array([id, gt]))
+            all_q.append(np.array([id, q]))
+        
         all_gt = np.array(all_gt)
-        all_q = np.array(all_q)
+        all_q = np.array(all_q)         
         return [all_gt, all_q]
             
 
