@@ -214,9 +214,8 @@ class TrajProcessor():
         x: 
         1. Ground truth trajectory. ONLY keep the ID. 
         2. Query trajectory. ONLY keep the ID
-        3. Negative sample trajectory. ONLY keep the ID 
-        4. Target pattern output (spatial)
-        5. Target pattern output (temporal) 
+        3. Target pattern output (spatial)
+        4. Target pattern output (temporal) 
         
         y: 
         1. Ground truth trajectory. ONLY keep the ID 
@@ -242,12 +241,8 @@ class TrajProcessor():
             gt_patt_t = np.array([np.array(x[[1]]) for x in gt_patt])
             q = self.__keep_id_only(q)
             
-            # Sample a random ground truth trajectory for the negative sample
-            neg = copy.deepcopy(random.choice(all_pairs)[1][0])
-            neg = self.__keep_id_only(neg)
-            
             # Form the X and then y and then append  
-            one_x = np.array([gt, q, neg, gt_patt_s, gt_patt_t])
+            one_x = np.array([gt, q, gt_patt_s, gt_patt_t])
             one_y = np.array([gt, gt_patt_s, gt_patt_t])
             all_x.append(one_x)
             all_y.append(one_y)
