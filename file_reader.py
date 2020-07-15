@@ -20,7 +20,7 @@ class FileReader():
             
     def read_trajectory_from_file(self, input_file_path, dataset_mode, 
                                   min_trajectory_length, max_trajectory_length,
-                                  bbox_coords): 
+                                  bbox_coords, traj_nums, data_sel_mode): 
         """
         Reads the input_file while doing some pruning which are: removing 
         trajectories that are too short, removing trajectories that are too, 
@@ -39,7 +39,12 @@ class FileReader():
             bbox_coords: (list of floats) Min lat, min lng, max lat and max lng
                          that represents the valid area. Points outside this 
                          area are to be removed 
-                         
+            traj_nums: (list of integers) A list containing the number of 
+                        lines in the .csv trajectory to be assigned to the 
+                        training, validation, and test data accordingly 
+            data_sel_mode: (string) The data selection mode. Only relevant for 
+                            the testing data. 
+            
         Returns:    
             A list of trajectories. Each trajectory is a list consisting of 
             latitude, longitude and timestamp in the form of minutes-in-day
@@ -54,14 +59,15 @@ class FileReader():
         # data_mode 
         if dataset_mode == 'porto':
             return(self.__read_porto(in_file, min_trajectory_length, 
-                                     max_trajectory_length))
+                                     max_trajectory_length, traj_nums, 
+                                     data_sel_mode))
         else:
             raise ValueError("'" + dataset_mode + "' not supported.")
         in_file.close()
     
 
     def __read_porto(self, in_file, min_trajectory_length, 
-                     max_trajectory_length):
+                     max_trajectory_length, traj_nums, data_sel_mode):
         """
         Reads the porto trajectory file line-by-line
         
@@ -71,14 +77,24 @@ class FileReader():
                                    length 
             max_trajectory_length: (Integer) The longest allowable trajectory 
                                    length 
-                                   
+            traj_nums: (list of integers) A list containing the number of 
+                        trajectories for each training, validation, or test 
+                        split. 
+            data_sel_mode: (string) The data selection mode. Only relevant for 
+                            the testing data. 
         Returns:    
             A list of trajectories. Each trajectory is a list consisting of 
             latitude, longitude and timestamp in the form of minutes-in-day
         """
         # Throws away the .csv header and then read line-by-line 
         in_file.readline()
-        all_traj = []
+        
+        # Get the lines into the training, validation, and test arrays 
+        [num_train, num_validation, num_test] = traj_nums
+        all_train = []
+        all_validation = []
+        all_test = []
+        
         for line in in_file:
             trajectory = ast.literal_eval(line.split('","')[-1].replace('"',''))
             # Only process the trajectory further if it's not too long or too 
@@ -99,9 +115,28 @@ class FileReader():
                 # The new trajectory may be shorter because points outside of 
                 # the area are removed. If it is now shorter, we ignore it 
                 if (len(new_traj) >= min_trajectory_length):
-                    all_traj.append(new_traj)
-        return all_traj 
-
+                
+                    # Add to either the training, validation, or test list 
+                    if len(all_train) < num_train:
+                        all_train.append(new_traj)
+                    elif len(all_validation) < num_validation:
+                        all_validation.append(new_traj)
+                    elif len(all_test) < num_test:
+                        if data_sel_mode == 'split':
+                            # If the data mode is 'split', the test data will 
+                            # be split into two trajectories by alternatively 
+                            # taking points. Consequently, we need to double 
+                            # the min traj len. restriction so that the 
+                            # resulting trajectories are not too short
+                            if (len(trajectory) <= max_trajectory_length and 
+                                len(trajectory) >= min_trajectory_length * 2):
+                                all_test.append(new_traj)
+                        else:
+                            all_test.append(new_traj)
+                    else:
+                        break 
+        return [all_train, all_validation, all_test]
+        
 
     def __check_point_and_add_timestamp(self, trajectory, start_second):
         """

@@ -37,27 +37,47 @@ def main():
     min_trajectory_length = arg_processor.min_trajectory_length
     max_trajectory_length = arg_processor.max_trajectory_length
     file_reader = FileReader()
+    
+    num_test = None 
+    d_sel_mode = arg_processor.data_selection_mode
+    if d_sel_mode == 'split':
+        num_test = arg_processor.num_q + max(arg_processor.nums_db)
+    elif d_sel_mode == 'drop':
+        num_test = arg_processor.num_test
+    else:
+        assert False 
+    traj_nums = [arg_processor.num_train, arg_processor.num_val, num_test]
     all_traj = file_reader.read_trajectory_from_file(input_file_path, 
                                                      dataset_mode, 
                                                      min_trajectory_length, 
                                                      max_trajectory_length,
-                                                     bounding_box_coords)
+                                                     bounding_box_coords,
+                                                     traj_nums,
+                                                     d_sel_mode) 
     
     # Process the raw trajectories 
     print("Processing trajectories.")
-    seed = arg_processor.seed
-    traj_processor = TrajProcessor(seed)
+    traj_processor = TrajProcessor()
     point_drop_rates = arg_processor.point_drop_rates
-    max_spatial_distortion = arg_processor.max_spatial_distortion
-    max_temporal_distortion = arg_processor.max_temporal_distortion
+    spatial_distortions = arg_processor.spatial_distortions
+    temporal_distortions = arg_processor.temporal_distortions
     span = arg_processor.span 
     stride = arg_processor.stride 
-    all_traj_pairs = traj_processor.first_loop(all_traj, 
-                                               point_drop_rates, 
-                                               max_spatial_distortion, 
-                                               max_temporal_distortion,
-                                               all_grids, bounding_box_coords,
-                                               span, stride)
+    
+    [all_train, all_validation, all_test] = all_traj 
+    all_train_pairs = traj_processor.first_loop(all_train,
+                                                point_drop_rates, 
+                                                spatial_distortions, 
+                                                temporal_distortions,
+                                                all_grids, bounding_box_coords,
+                                                span, stride)
+    all_validation_pairs = traj_processor.first_loop(all_validation,
+                                                     point_drop_rates, 
+                                                     spatial_distortions, 
+                                                     temporal_distortions,
+                                                     all_grids, 
+                                                     bounding_box_coords,
+                                                     span, stride)
     
     # Get the hot cells 
     print("Getting hot cells")
@@ -73,39 +93,63 @@ def main():
     
     # Second loop through the dataset 
     min_query_length =round((1 - max(point_drop_rates)) * min_trajectory_length)
-    all_traj_pairs = traj_processor.second_loop(all_traj_pairs, key_lookup_dict,
-                                                min_trajectory_length,
-                                                min_query_length)
+    all_train_pairs = traj_processor.second_loop(all_train_pairs, 
+                                                 key_lookup_dict,
+                                                 min_trajectory_length,
+                                                 min_query_length)
+    all_validation_pairs = traj_processor.second_loop(all_validation_pairs, 
+                                                      key_lookup_dict,
+                                                      min_trajectory_length,
+                                                      min_query_length)
     
-    # Split the data to train, validation, and test set 
-    print("Splitting dataset to train, validation, and test set") 
-    all_num_data = arg_processor.all_num_data
+    # Process the test data  
+    if d_sel_mode == 'split':
+        maxdb = max(arg_processor.nums_db)
+        all_test_tri = traj_processor.first_loop_test_split(all_test, 
+                                                            arg_processor.num_q,
+                                                            maxdb, all_grids, 
+                                                            bounding_box_coords,
+                                                            span, stride)
+        max_num_db = max(arg_processor.nums_db)
+        test_data = traj_processor.process_test_data_split(all_test_tri, 
+                                                          key_lookup_dict,
+                                                          max_num_db,
+                                                          min_trajectory_length)
+    else:
+        #test_data = traj_processor.process_test_data()
+        assert False, "NOT IMPLEMENTED YET" 
     
-    for i in range(len(all_num_data)):
-        num_data = all_num_data[i]
-        split_data = traj_processor.split_and_process_dataset(all_traj_pairs,
-                                                                num_data)
-        [train_data, val_data, test_data] = split_data
-        
-        # Write to the output files 
-        print("Writing to output files") 
-        writer = FileWriter()
-        output_directory = arg_processor.output_directory
-        train_name = str(i+1) + "_training"
-        validation_name = str(i+1) + "_validation"
-        test_name = str(i+1) + "_test"
-        topk_name = str(i+1) + "_topk"
-        
-        writer.write_train_data(train_data[0], train_data[1], train_name, 
-                                output_directory, seed)
-        writer.write_train_data(val_data[0], val_data[1], validation_name, 
-                                output_directory, seed)
-        writer.write_test_data(test_data[0], test_data[1], test_name, 
-                               output_directory, seed)
-        writer.write_topk(topk_id, topk_weight, topk_name, output_directory)
-        
-        # Finally, create a copy of the .ini file to the output directory
-        writer.copy_ini_file(ini_path, output_directory)
+    
+    train_data = traj_processor.flatten_traj_pairs(all_train_pairs)
+    train_data = traj_processor.process_training_data(train_data)
+    val_data = traj_processor.flatten_traj_pairs(all_validation_pairs)
+    val_data = traj_processor.process_training_data(val_data)
+    
+    # Write to the output files 
+    print("Writing to output files") 
+    writer = FileWriter()
+    output_directory = arg_processor.output_directory
+    train_name = "1_training"
+    validation_name = "1_validation"
+    topk_name = "1_topk"
+    train_segment_size = arg_processor.train_segment_size
+    val_segment_size = arg_processor.val_segment_size
+    writer.write_train_data(train_data[0], train_data[1], train_name, 
+                            output_directory, train_segment_size)
+    writer.write_train_data(val_data[0], val_data[1], validation_name, 
+                            output_directory, val_segment_size)
+    if d_sel_mode == "split":
+        test_name = "_test"
+        writer.write_test_data_split(test_data[0], 
+                                     test_data[1], 
+                                     arg_processor.num_q,
+                                     arg_processor.nums_db, 
+                                     test_name, 
+                                     output_directory)
+    writer.write_topk(topk_id, topk_weight, topk_name, output_directory)
+    
+    # Finally, create a copy of the .ini file to the output directory
+    writer.copy_ini_file(ini_path, output_directory)
     
 if __name__ == "__main__":
     start_dt = datetime.datetime.now()

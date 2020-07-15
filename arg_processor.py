@@ -77,6 +77,8 @@ class ArgProcessor():
         
         # TRAINVAL section 
         self.num_train = int(config['TRAINVAL']['NumTrain'])
+        self.train_segment_size = int(config['TRAINVAL']['TrainSegmentSize'])
+        self.val_segment_size = int(config['TRAINVAL']['ValSegmentSize'])
         self.num_val = int(config['TRAINVAL']['NumVal'])
         self.point_drop_rates = ast.literal_eval(config['TRAINVAL']
                                                        ['PointDropRates'])
@@ -103,17 +105,36 @@ class ArgProcessor():
                                  "0 or greater.")
         
         # TEST section 
-        self.num_test = int(config['TEST']['NumTest'])
-        self.data_selection_mode = config['TEST']['DataSelectionMode']
+        self.data_selection_mode = config['TEST']['DataSelectionMode'].lower()
         # Check validity 
-        if self.num_test <= 0:
-            raise ValueError("NumTest must be greater than 0")
         self.data_selection_modes = ['split','downsample']
-        if self.data_selection_mode.lower() not in self.data_selection_modes:
+        if self.data_selection_mode not in self.data_selection_modes:
             raise ValueError("DataSelectionMode not supported. Available " + 
                              "modes are: " + str(self.data_selection_modes))
-        
-        
+                             
+        # TESTSPLIT or TESTDROP section, depends on data_selection_mode
+        if self.data_selection_mode == 'split':
+            self.num_q = int(config['TESTSPLIT']['NumQ'])
+            self.nums_db = ast.literal_eval(config['TESTSPLIT']['NumsDB'])
+            # Check validity 
+            if self.num_q <= 0:
+                raise ValueError("NumQ must be greater than 0.")
+            for x in self.nums_db:
+                if x <= 0:
+                    raise ValueError("All values in NumsDB must be greater " + 
+                                     "than 0")
+        elif self.data_selection_mode == 'drop':
+            self.point_drop_rates_test = ast.literal_eval(config['TESTDROP']
+                                                         ['PointDropRatesTest'])
+            self.num_test = int(config['TESTDROP']['NumTest'])
+            # Check validity 
+            for x in self.point_drop_rates_test:
+                if x < 0 or x > 1:
+                    raise ValueError("All values in PointDropRatesTest must " +
+                                     "be between 0 and 1 inclusive.")
+            if self.num_test <= 0:
+                raise ValueError("NumTest must be greater than 0")
+
         # PATTERN section 
         self.span = int(config['PATTERN']['Span'])
         self.stride = int(config['PATTERN']['Stride'])

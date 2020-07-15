@@ -16,18 +16,16 @@ class TrajProcessor():
     Takes a list of trajectories and processes it to output a model-ready 
     dataset. 
     """
-    def __init__(self, seed):
+    def __init__(self):
         """
         Initializes several important constants 
         """
         self.__MINUTES_IN_DAY = 1440
         self.__R_EARTH = 6378137
-        random.seed(seed)
         
 
-    def first_loop(self, all_traj, point_drop_rates, max_spatial_distortion, 
-                   max_temporal_distortion, all_cells, bbox_coords, span, 
-                   stride):
+    def first_loop(self, all_traj, point_drop_rates, spatial_distortions, 
+                   temporal_distortions, all_cells, bbox_coords, span, stride):
         """
         The first loop through the whole dataset performs several tasks:
         1. Generate query trajectories from ground truth by downsampling it 
@@ -39,12 +37,10 @@ class TrajProcessor():
         Args:
             all_traj: (list of lists) List of all trajectories 
             point_drop_rates: (list of floats) List of all drop rates 
-            max_spatial_distortion: (integer) The maximum distance that the 
-                                     latitude and longitude points can be 
-                                     distorted to. Unit is in meters. 
-            max_temporal_distortion: (integer) The maximum time that the 
-                                      original timestamp can be distorted to. 
-                                      Unit is in minutes. 
+            spatial_distortions: (list of integers) List of all spatial 
+                                  distortion rates. Unit is in meters 
+            temporal_distortions: (list of integers) List of all temporal 
+                                   distortion rates. Unit is in minutes. 
             all_cells: (3D numpy array) All grid cells 
             bbox_coords: (list of double) List of four coordinates that 
                           determine the entire valid area, e.g. the city the 
@@ -70,32 +66,33 @@ class TrajProcessor():
         for i in range(len(all_traj)):
             print("Processing trajectory (1st loop) " + str(i+1) + " out of " +
                    str(len(all_traj)))
+                   
             # Generate the downsampled trajectories
+            all_cur_traj_q = []
             cur_traj_q = self.__downsample_trajectory(all_traj[i],
                                                       point_drop_rates)
             
             # Distort the downsampled trajectories 
-            for j in range(len(cur_traj_q)):
-                one_traj_q = cur_traj_q[j]
-                for traj_point in one_traj_q:
-                    self.__distort_spatial(traj_point, max_spatial_distortion,  
-                                           bbox)
-                self.__distort_temporal_traj(one_traj_q, 
-                                             max_temporal_distortion)
-                                             
-                # Also grid the trajectories 
-                cur_traj_q[j] = self.__grid_trajectory(one_traj_q, all_cells)
+            for traj_q in cur_traj_q:
+                for s in spatial_distortions:
+                    for t in temporal_distortions:
+                        traj_q_new = self.__distort_spatiotemporal_traj(traj_q,
+                                                                        s, t, 
+                                                                        bbox)
+                        # Also grid the trajectories 
+                        traj_q_new = self.__grid_trajectory(traj_q_new, 
+                                                            all_cells)
+                        all_cur_traj_q.append(traj_q_new) 
                 
             # Grid the ground truth trajectory 
             gt_traj_grid = self.__grid_trajectory(all_traj[i], all_cells)
             
-            # Get the pattern features for the ground truth and all query 
-            # trajectories. 
+            # Get the pattern features for the ground truth 
             all_ranges = self.__create_pattern_ranges(span, stride)
             gt_patt_features = self.__get_pattern_features(gt_traj_grid, 
                                                            all_ranges)
-            gt_data = [gt_traj_grid, gt_patt_features]
-            all_pairs.append([gt_data, cur_traj_q])
+            gt_data = [gt_traj_grid, gt_patt_features]  
+            all_pairs.append([gt_data, all_cur_traj_q])
         return all_pairs 
 
 
@@ -145,6 +142,64 @@ class TrajProcessor():
                     new_all_traj_pairs.append([[new_gt, np.array(gt[1])], new_q])
         return new_all_traj_pairs
         
+        
+    def first_loop_test_split(self, all_traj, num_q, num_db, all_cells, 
+                              bbox_coords, span, stride):
+        """
+        Given a list of trajectories read from the .csv file, divide intto 
+        query and database using the splitting method; taking each query 
+        trajectory, splitting it to two trajectories by alternatively taking 
+        points, and assigning the two split to all_q and all_db respectively. 
+        
+        Args:
+            all_traj: (list) List of trajectories 
+            all_traj: (list) List of trajectories 
+            num_q: (int) The number of query trajectories 
+            num_db: (int) The number of database trajectories 
+            all_cells: (3D numpy array) All grid cells 
+            bbox_coords: (list of double) List of four coordinates that 
+                          determine the entire valid area, e.g. the city the 
+                          dataset is based on. 
+            span: (integer) The span is used to form the pattern features. This 
+                   argument determines the window size for a pattern. 
+            stride: (integer) The stride determines the distance of each 
+                     pattern, which in turns determines the magnitude of point 
+                     overlap between patterns. 
+        """
+        [min_lat, min_lng, max_lat, max_lng] = bbox_coords
+        bbox = Polygon([(min_lat, min_lng), (max_lat, min_lng), 
+                        (max_lat, max_lng), (min_lat, max_lng),
+                        (min_lat, min_lng)])
+        
+        all_q = []
+        all_qdb = []
+        all_db = []
+        cur_traj = 0 
+        for traj in all_traj:
+            cur_traj += 1
+            if cur_traj <= num_q:
+                # If the trajectory belongs to the query, split to two and 
+                # each to all_q and all_db 
+                # Grid the trajectories 
+                traj_ = self.__grid_trajectory(copy.deepcopy(traj), all_cells)
+                
+                # Split trajectories to two by alternatively taking points 
+                q_traj = traj_[0::2]
+                db_traj = traj_[1::2]
+                
+                # Add to all_q and all_db 
+                all_q.append(q_traj)
+                all_qdb.append(db_traj) 
+            elif cur_traj <= num_q + num_db: 
+                # If the trajectory belongs to the database, split in half and 
+                # add to all_db 
+                db_traj = self.__grid_trajectory(copy.deepcopy(traj[1::2]), 
+                                                 all_cells)                
+                all_db.append(db_traj)
+            else:
+                break 
+        return [all_q, all_qdb, all_db]
+
         
     def split_and_process_dataset(self, all_traj_pairs, num_data):
         """
@@ -199,13 +254,36 @@ class TrajProcessor():
                                     num_train + num_val + num_test]
         
         # Process the training and validation data 
-        train_processed = self.__process_training_data(train_pairs)
-        val_processed = self.__process_training_data(val_pairs) 
+        train_processed = self.process_training_data(train_pairs)
+        val_processed = self.process_training_data(val_pairs) 
         test_processed = self.__process_test_data(test_pairs)
         return [train_processed, val_processed, test_processed]
         
         
-    def __process_training_data(self, all_pairs):
+    def flatten_traj_pairs(self, all_traj_pairs):
+        """
+        A ground truth is associated with one or more queries. This messes 
+        up the calculation of the actual pairs. Here, we "flatten" them 
+        first by creating a pair for every ground truth and query 
+        
+        Args:
+            all_traj_pairs: (list) List of all gt-q pairs 
+            
+        Returns 
+            List of "flattened" trajectory pairs, in which a ground truth is 
+            matched with one and only one query. 
+        """
+        flattened_pairs = []
+        id = 0 
+        for one_pair in all_traj_pairs:
+            [[gt, gt_patt], q] = copy.deepcopy(one_pair)
+            for one_q in q:
+                flattened_pairs.append([id, [gt, gt_patt, one_q]])
+            id += 1
+        return flattened_pairs
+        
+        
+    def process_training_data(self, all_pairs):
         """
         Given an input dataset, process it for the training part. The output 
         consists of x (the input data) and y (the value the model should 
@@ -249,7 +327,7 @@ class TrajProcessor():
         return [np.array(all_x), np.array(all_y)]
         
 
-    def __process_test_data(self, all_pairs):
+    def process_test_data(self, all_pairs):
         """
         Given an input dataset, transform it to a format that can be used for 
         the testing. This involves storing the ground truth and query 
@@ -295,6 +373,56 @@ class TrajProcessor():
         return [all_gt, all_q]
             
 
+    def process_test_data_split(self, all_test_triplet, key_lookup_dict, 
+                                max_num_db, min_traj_len):
+        """
+        Process the test data if data_selection_model is 'split'
+        
+        Args:
+            all_test_triplet: (list) List of three items. The first two refers 
+                               to the split query trajectory, the second 
+                               refers to the other half of the split query 
+                               trajectory, and the third refers to the 
+                               database trajectories 
+            max_num_db: (int) The largest number of database to be used  
+            min_traj_len: (int) The minimum trajectory length. Any trajectories 
+                           shorter than this will be removed. 
+            
+        Returns 
+            Numpy arrays for all_q and all_db, where each element consists of 
+            the trajectory ID and the trajectories themselves 
+        """ 
+        [all_q, all_qdb, all_db] = all_test_triplet
+        all_q_arr = []
+        all_qdb_arr = []
+        all_db_arr = []
+        
+        # Processes the q and qdb first 
+        cur_id = 0 
+        for i in range(len(all_q)):
+            cur_id += 1
+            q = self.__remove_non_hot_cells(all_q[i], key_lookup_dict)
+            qdb = self.__remove_non_hot_cells(all_qdb[i], key_lookup_dict)
+            if len(q) >= min_traj_len and len(qdb) >= min_traj_len:
+                q = self.__keep_id_only(q)
+                qdb = self.__keep_id_only(qdb) 
+                all_q_arr.append(np.array([cur_id, q]))
+                all_qdb_arr.append(np.array([cur_id, qdb]))
+        
+        
+        for i in range(len(all_db)):
+            cur_id += 1
+            db = self.__remove_non_hot_cells(all_db[i], key_lookup_dict)
+            if len(db) >= min_traj_len:
+                db = self.__keep_id_only(db)
+                all_db_arr.append(np.array([cur_id, db]))
+                
+        # Generates all splits for all nums_db 
+        all_dbs = np.array(all_qdb_arr + all_db_arr[:max_num_db])
+        all_q_arr = np.array(all_q_arr)
+        return [all_q_arr, all_dbs]
+        
+        
     def __remove_non_hot_cells(self, trajectory, key_lookup_dict):
         """
         Given a trajectory, remove any trajectory point not belonging to a 
@@ -634,6 +762,32 @@ class TrajProcessor():
         return all_ranges
         
 
+    def __distort_spatiotemporal_traj(self, traj, max_spatial_distortion, 
+                                      max_temporal_distortion, bbox):
+        """
+        Distorts a trajectory both spatially and temporally 
+        
+        Args:
+            traj: (list) List of trajectory points, containing both the 
+                   spatial and temporal information 
+            max_spatial_distortion: (integer) The maximum spatial distortion 
+                                    (in meters)
+            max_temporal_distortion: (integer) The maximum temporal distortion 
+                                     (in minutes) 
+            bbox: (shapely Polygon) A polygon that represents the valid area
+        """
+        traj_ = copy.deepcopy(traj) 
+        
+        # Do not do the distortion if the spatial distortion is 0, same for 
+        # temporal 
+        if max_spatial_distortion != 0:
+            for traj_point in traj_:
+                self.__distort_spatial(traj_point, max_spatial_distortion, bbox)
+        if max_temporal_distortion != 0:
+            self.__distort_temporal_traj(traj_, max_temporal_distortion)
+        return traj_ 
+
+
     def __distort_spatial(self, traj_point, max_spatial_distortion, bbox):
         """
         Performs the spatial distortion. This is done by randomizing a bearing 
@@ -642,7 +796,7 @@ class TrajProcessor():
         the point is outside the valid area, revert it to the original position.
         Calculation is from: stackoverflow question #7222382
         
-        Input:
+        Args:
             traj_point: (list)The triplet of latitude, longitude, timestamp that 
                         we want to distort spatially 
             max_spatial_distortion: (integer) The maximum distance that the 
@@ -658,7 +812,7 @@ class TrajProcessor():
         # Calculate the new point 
         degree = random.randint(1,360)
         bearing = math.radians(degree)
-        distort_dist = random.randint(1, max_spatial_distortion)
+        distort_dist = random.randint(0, max_spatial_distortion)
         d_r =  distort_dist / self.__R_EARTH
         lat2 = math.asin(math.sin(lat1) * math.cos(d_r) + 
                          math.cos(lat1) * math.sin(d_r) * math.cos(bearing))
