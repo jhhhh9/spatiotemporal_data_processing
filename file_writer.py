@@ -11,34 +11,41 @@ class FileWriter():
     """
     This class handles the printing of data to files. 
     """
-    def write_train_data(self, data_x, data_y, file_name, output_directory,
-                         train_segment_size):
+    def write_train_data(self, data_x, data_y, file_name_x, file_name_y, 
+                         file_name_log, output_directory, train_segment_size,
+                         num_lines):
         """
         Writes the training data to files in the specified directory.
         
         Args:
             data_x: (numpy array) The input data to be used for training 
             data_y: (numpy array) The ground truth data to be used for training
-            file_name: (string) Identifier to add to the file name 
+            file_name_x: (string) Identifier to add to the file name for the 
+                          x data 
+            file_name_y: (string) Identifier to add to the file name for the y 
+                          labels
+            file_name_log: (string) The name of the output file 
             output_directory: (string) The output directory for the data files 
             train_segment_size: (int) The size of each segment of training data. 
                                  Specify a positive value to divide the 
                                  training data to segments of the specified  
                                  size. Each segment will be written to its own 
                                  file 
+            num_lines: (int) The actual number of lines read from the input 
+                        data file. Required for processing the test data 
         """
         # Writes to .npy files
         # If train_segment_size is <= 0, print to one file 
         if train_segment_size <= 0:
-            output_path_x = pathlib.Path(output_directory) / (file_name + "_x")
-            output_path_y = pathlib.Path(output_directory) / (file_name + "_y")
+            output_path_x = pathlib.Path(output_directory) / (file_name_x)
+            output_path_y = pathlib.Path(output_directory) / (file_name_y)
             np.save(output_path_x, data_x)
             np.save(output_path_y, data_y)
         else:
             # If not, create a nested directory that will contain the training
             # data segments 
-            out_dir_x = output_directory + "/" + file_name + "_x" 
-            out_dir_y = output_directory + "/" + file_name + "_y"
+            out_dir_x = output_directory + "/" + file_name_x
+            out_dir_y = output_directory + "/" + file_name_y
             if not os.path.exists(out_dir_x):
                 os.mkdir(out_dir_x)
             if not os.path.exists(out_dir_y):
@@ -52,8 +59,8 @@ class FileWriter():
             seg_num = 0 
             while seg_end <= len(data_x):
                 seg_num += 1
-                seg_name_x = file_name + "_" + str(seg_num).zfill(n_zero) + "_x"
-                seg_name_y = file_name + "_" + str(seg_num).zfill(n_zero) + "_y"
+                seg_name_x = file_name_x + "_" + str(seg_num).zfill(n_zero)
+                seg_name_y = file_name_y + "_" + str(seg_num).zfill(n_zero)
                 output_path_x = pathlib.Path(out_dir_x) / seg_name_x
                 output_path_y = pathlib.Path(out_dir_y) / seg_name_y
                 np.save(output_path_x, data_x[seg_sta:seg_end])
@@ -62,11 +69,12 @@ class FileWriter():
                 seg_end += train_segment_size
                 
         # Write the log 
-        output_path = pathlib.Path(output_directory) / (file_name)
+        output_path = pathlib.Path(output_directory) / (file_name_log)
         with open(output_path.with_suffix(".txt"), 'w') as f:
             f.write("Dataset contents: 'data_x', 'data_y'" )
             f.write("\ndata_x shape: " + str(data_x.shape))
             f.write("\ndata_y shape: " + str(data_y.shape))
+            f.write("\nLines read: " + str(num_lines))
         
             
     def write_test_data(self, data_q, data_gt, file_name, output_directory):
@@ -112,19 +120,23 @@ class FileWriter():
         np.save(output_path_q, data_q)
         
         # Write all dbs to .npy files 
+        db_shapes = []
         for i in range(len(nums_db)):
             db_name = str(i+1) + file_name + "_db"
             output_path_gt = pathlib.Path(output_directory) / db_name
             db_data = all_data_db[:num_q + nums_db[i]]
+            db_shapes.append(db_data.shape)
             np.save(output_path_gt, db_data)
         
         output_path = pathlib.Path(output_directory) / ("1" + file_name)
         with open(output_path.with_suffix(".txt"), 'w') as f:
             f.write("Dataset contents: 'data_gt', 'data_q'" )
             f.write("\ndata_q shape: " + str(data_q.shape))
-            f.write("\ndata_gt shape: " + str([x.shape for x in all_data_db]))
-    
-    def write_topk(self, topk_id, topk_weight, file_name, output_directory):
+            f.write("\ndata_gt shape: " + str([x for x in db_shapes]))
+  
+  
+    def write_topk(self, topk_id, topk_weight, file_name_id, file_name_weight,
+                   file_name_log, output_directory):
         """
         Writes the top-k nearest neighbors data to output files 
         
@@ -133,23 +145,53 @@ class FileWriter():
                       cells' ID data 
             topk_weight: (numpy array) The array containig the top-k closest 
                           cells' weight data 
-            file_name: (string) Output file name 
+            file_name_id: (string) Output file name for the topk IDs
+            file_name_weight: (string) Output file name for the topk weights
+            file_name_log: (string) Name for the log file 
             output_directory: (string) Directory to write the file to
         """
         # Writes to .npy files
-        output_path = pathlib.Path(output_directory) / (file_name)
-        output_path_id = pathlib.Path(output_directory) / (file_name + "_id")
-        output_path_weight = (pathlib.Path(output_directory) / 
-                              (file_name + "_weight"))
+        output_path_log = pathlib.Path(output_directory) / (file_name_log)
+        output_path_id = pathlib.Path(output_directory) / (file_name_id)
+        output_path_weight = pathlib.Path(output_directory) / (file_name_weight)
         np.save(output_path_id, topk_id)
         np.save(output_path_weight, topk_weight)
         
-        with open(output_path.with_suffix(".txt"), 'w') as f:
+        with open(output_path_log.with_suffix(".txt"), 'w') as f:
             f.write("Dataset contents: 'topk_id', 'topk_weight'")
             f.write("\ntopk_id shape: " + str(topk_id.shape))
             f.write("\ntopk_weight shape: " + str(topk_weight.shape))
             
-            
+    
+    def write_cell_dict(self, cell_dict, file_name, output_directory):
+        """
+        Writes the cell dictionary to a file. This dictionary maps the raw 
+        string-based IDs to the new int-based, which is required for the model 
+        
+        Args:
+            cell_dict: (dictionary) Cell dictionary to be written to file 
+            file_name: (string) File name header for the output file 
+            output_directory: (string) Output directory for the file 
+        """
+        output_path_cell_dict = pathlib.Path(output_directory) / (file_name)
+        np.save(output_path_cell_dict, cell_dict)
+        
+        
+    def write_cells(self, all_cells, file_name, output_directory):
+        """
+        Writes all cells to a file. The cells are stored in a numpy array. This 
+        numpy array allows the mapping from raw lat-lng coordinates to cell IDs 
+        
+        Args:
+            all_cells: (numpy array) Numpy array containing all cells and their 
+                        properties 
+            file_name: (string) File name header for the output file 
+            output_directory: (string) Output directory for the file 
+        """
+        output_path_cells = pathlib.Path(output_directory) / file_name
+        np.save(output_path_cells, all_cells)
+        
+        
     def copy_ini_file(self, ini_path, output_directory):
         """
         Copies the input .ini file to the output directory 

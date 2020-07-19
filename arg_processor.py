@@ -21,7 +21,21 @@ class ArgProcessor():
         config.read(ini_path)
         self.__MINUTES_IN_A_DAY = 1440 
         
-        # GENERAL section 
+        ## MODE section 
+        self.process_train_val = config['MODE']['ProcessTrainVal']
+        self.process_test = config['MODE']['ProcessTest']
+        # Check validity 
+        # Transforms strings to booleans
+        if self.process_train_val.lower() == "true":
+            self.process_train_val = True 
+        elif self.process_train_val.lower() == "false":
+            self.process_train_val = False 
+        if self.process_test.lower() == "true":
+            self.process_test = True 
+        elif self.process_test.lower() == "false":
+            self.process_test = False 
+        
+        ## GENERAL section 
         self.input_file_path = config['GENERAL']['InputFilePath']
         self.output_directory = config['GENERAL']['OutputDirectory']
         self.dataset_mode = config['GENERAL']['DatasetMode'].lower() 
@@ -38,7 +52,7 @@ class ArgProcessor():
             raise ValueError("'" + self.dataset_mode + "' is not one of the " + 
                              "valid dataset modes.")
         
-        # PRUNING section  
+        ## PRUNING section  
         self.min_trajectory_length = int(config['PRUNING']
                                                ['MinTrajectoryLength'])
         self.max_trajectory_length = int(config['PRUNING']
@@ -54,7 +68,12 @@ class ArgProcessor():
         if self.max_trajectory_length < 0:
             raise ValueError("MaxTrajectoryLength must not be negative")
         
-        # GRID section 
+        ## GRID section 
+        self.topk_id_name = config['GRID']['TopKIDName']
+        self.topk_weight_name = config['GRID']['TopKWeightName']
+        self.topk_log_name = config['GRID']['TopKLogName']
+        self.cell_dict_name = config['GRID']['CellDictName']
+        self.all_cells_name = config['GRID']['AllCellsName']
         self.bounding_box_coords = ast.literal_eval(config['GRID']
                                                           ['BoundingBoxCoords'])
         self.spatial_grid_lat = int(config['GRID']['SpatialGridLat'])
@@ -75,7 +94,13 @@ class ArgProcessor():
         if self.k <= 0:
             raise ValueError('K must be greater than 0')
         
-        # TRAINVAL section 
+        ## TRAINVAL section 
+        self.train_x_name = config['TRAINVAL']['TrainXName']
+        self.train_y_name = config['TRAINVAL']['TrainYName']
+        self.train_log_name = config['TRAINVAL']['TrainLogName']
+        self.val_x_name = config['TRAINVAL']['ValXName']
+        self.val_y_name = config['TRAINVAL']['ValYName']
+        self.val_log_name = config['TRAINVAL']['ValLogName']
         self.num_train = int(config['TRAINVAL']['NumTrain'])
         self.train_segment_size = int(config['TRAINVAL']['TrainSegmentSize'])
         self.val_segment_size = int(config['TRAINVAL']['ValSegmentSize'])
@@ -86,7 +111,7 @@ class ArgProcessor():
                                                          ['SpatialDistortions'])
         self.temporal_distortions = ast.literal_eval(config['TRAINVAL']
                                                         ['TemporalDistortions'])
-        # Check validity 
+        ## Check validity 
         if self.num_train <= 0: 
             raise ValueError("NumTrain must be greater than 0")
         if self.num_val <= 0:
@@ -104,7 +129,7 @@ class ArgProcessor():
                 raise ValueError("All values in TemporalDistortions must be " + 
                                  "0 or greater.")
         
-        # TEST section 
+        ## TEST section 
         self.data_selection_mode = config['TEST']['DataSelectionMode'].lower()
         # Check validity 
         self.data_selection_modes = ['split','downsample']
@@ -112,7 +137,7 @@ class ArgProcessor():
             raise ValueError("DataSelectionMode not supported. Available " + 
                              "modes are: " + str(self.data_selection_modes))
                              
-        # TESTSPLIT or TESTDROP section, depends on data_selection_mode
+        ## TESTSPLIT or TESTDROP section, depends on data_selection_mode
         if self.data_selection_mode == 'split':
             self.num_q = int(config['TESTSPLIT']['NumQ'])
             self.nums_db = ast.literal_eval(config['TESTSPLIT']['NumsDB'])
@@ -135,7 +160,7 @@ class ArgProcessor():
             if self.num_test <= 0:
                 raise ValueError("NumTest must be greater than 0")
 
-        # PATTERN section 
+        ## PATTERN section 
         self.span = int(config['PATTERN']['Span'])
         self.stride = int(config['PATTERN']['Stride'])
         # Check validity 

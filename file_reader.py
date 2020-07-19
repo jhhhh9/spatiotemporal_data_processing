@@ -3,6 +3,8 @@ from datetime import datetime
 from shapely.geometry import Point
 from shapely.geometry import Polygon 
 import ast 
+import numpy as np 
+import pathlib 
 
 class FileReader():
     """
@@ -20,7 +22,7 @@ class FileReader():
             
     def read_trajectory_from_file(self, input_file_path, dataset_mode, 
                                   min_trajectory_length, max_trajectory_length,
-                                  bbox_coords, traj_nums, data_sel_mode): 
+                                  bbox_coords, traj_nums): 
         """
         Reads the input_file while doing some pruning which are: removing 
         trajectories that are too short, removing trajectories that are too, 
@@ -41,9 +43,7 @@ class FileReader():
                          area are to be removed 
             traj_nums: (list of integers) A list containing the number of 
                         lines in the .csv trajectory to be assigned to the 
-                        training, validation, and test data accordingly 
-            data_sel_mode: (string) The data selection mode. Only relevant for 
-                            the testing data. 
+                        training, and validation data accordingly 
             
         Returns:    
             A list of trajectories. Each trajectory is a list consisting of 
@@ -59,17 +59,33 @@ class FileReader():
         # data_mode 
         if dataset_mode == 'porto':
             return(self.__read_porto(in_file, min_trajectory_length, 
-                                     max_trajectory_length, traj_nums, 
-                                     data_sel_mode))
+                                     max_trajectory_length, traj_nums))
         else:
             raise ValueError("'" + dataset_mode + "' not supported.")
         in_file.close()
     
 
-    def __read_porto(self, in_file, min_trajectory_length, 
-                     max_trajectory_length, traj_nums, data_sel_mode):
+    def read_npy(self, input_directory, file_name):
         """
-        Reads the porto trajectory file line-by-line
+        A general purpose function to read .npy files. If all you need to do is 
+        to read an .npy file from somewhere and don't need to do any form of 
+        preprocessing, use this. 
+        
+        Args:
+            input_directory: (string) The directory where the file is located 
+            file_name: (string) The file name 
+            
+        Returns:
+            A numpy array containing the contents of the .npy file 
+        """
+        fullpath = pathlib.Path(input_directory) / (file_name + ".npy")
+        return np.load(fullpath, allow_pickle = True)
+
+    def __read_porto(self, in_file, min_trajectory_length, 
+                     max_trajectory_length, traj_nums):
+        """
+        Reads the porto trajectory file line-by-line. Also keep track of the 
+        actual number of lines read 
         
         Args:
             in_file: (file) The input porto trajectory file 
@@ -78,24 +94,26 @@ class FileReader():
             max_trajectory_length: (Integer) The longest allowable trajectory 
                                    length 
             traj_nums: (list of integers) A list containing the number of 
-                        trajectories for each training, validation, or test 
-                        split. 
-            data_sel_mode: (string) The data selection mode. Only relevant for 
-                            the testing data. 
+                        trajectories for each training and validation data
         Returns:    
-            A list of trajectories. Each trajectory is a list consisting of 
-            latitude, longitude and timestamp in the form of minutes-in-day
+            A list of trajectories, and the actual number of lines read. Each 
+            trajectory is a list consisting of latitude, longitude and timestamp 
+            in the form of minutes-in-day
         """
         # Throws away the .csv header and then read line-by-line 
         in_file.readline()
         
         # Get the lines into the training, validation, and test arrays 
-        [num_train, num_validation, num_test] = traj_nums
+        [num_train, num_validation] = traj_nums
         all_train = []
         all_validation = []
         all_test = []
         
+        # Need to keep track of the actual number of lines read 
+        num_lines = 0
+        
         for line in in_file:
+            num_lines += 1
             trajectory = ast.literal_eval(line.split('","')[-1].replace('"',''))
             # Only process the trajectory further if it's not too long or too 
             # short 
@@ -115,27 +133,14 @@ class FileReader():
                 # The new trajectory may be shorter because points outside of 
                 # the area are removed. If it is now shorter, we ignore it 
                 if (len(new_traj) >= min_trajectory_length):
-                
                     # Add to either the training, validation, or test list 
                     if len(all_train) < num_train:
                         all_train.append(new_traj)
                     elif len(all_validation) < num_validation:
                         all_validation.append(new_traj)
-                    elif len(all_test) < num_test:
-                        if data_sel_mode == 'split':
-                            # If the data mode is 'split', the test data will 
-                            # be split into two trajectories by alternatively 
-                            # taking points. Consequently, we need to double 
-                            # the min traj len. restriction so that the 
-                            # resulting trajectories are not too short
-                            if (len(trajectory) <= max_trajectory_length and 
-                                len(trajectory) >= min_trajectory_length * 2):
-                                all_test.append(new_traj)
-                        else:
-                            all_test.append(new_traj)
                     else:
                         break 
-        return [all_train, all_validation, all_test]
+        return [[all_train, all_validation], num_lines]
         
 
     def __check_point_and_add_timestamp(self, trajectory, start_second):
