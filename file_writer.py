@@ -100,7 +100,7 @@ class FileWriter():
             f.write("\ndata_q shape: " + str(data_q.shape))
             
             
-    def write_test_data_split(self, data_q, all_data_db, num_q, nums_db, 
+    def write_test_data_split(self, data_q, data_qdb, data_db, num_q, nums_db, 
                               file_name, output_directory):
         """
         Writes the test data for the case when the data selection mode is 
@@ -108,8 +108,10 @@ class FileWriter():
         
         Args:
             data_q: (numpy array) Numpy array containing the query data 
-            all_data_db: (list) List of numpy arrays containing the multiple 
-                          trajectory DBs. 
+            data_qdb: (numpy array) Numpy array containing the other half 
+                       of each query's trajectory. This'll be added to 
+                       each db data 
+            data_db: (numpy array) Numpy array containing the database data 
             num_q: (int) Number of query trajectories 
             nums_db: (list) List of number of database trajectories 
             file_name: (string) Identifier to add to the file name 
@@ -124,9 +126,9 @@ class FileWriter():
         for i in range(len(nums_db)):
             db_name = str(i+1) + file_name + "_db"
             output_path_gt = pathlib.Path(output_directory) / db_name
-            db_data = all_data_db[:num_q + nums_db[i]]
-            db_shapes.append(db_data.shape)
-            np.save(output_path_gt, db_data)
+            data_qdb_db = np.concatenate((data_qdb, data_db[:nums_db[i]]))
+            db_shapes.append(data_qdb_db.shape)
+            np.save(output_path_gt, data_qdb_db) 
         
         output_path = pathlib.Path(output_directory) / ("1" + file_name)
         with open(output_path.with_suffix(".txt"), 'w') as f:

@@ -81,6 +81,7 @@ class FileReader():
         fullpath = pathlib.Path(input_directory) / (file_name + ".npy")
         return np.load(fullpath, allow_pickle = True)
 
+
     def __read_porto(self, in_file, min_trajectory_length, 
                      max_trajectory_length, traj_nums):
         """
@@ -133,7 +134,7 @@ class FileReader():
                 # The new trajectory may be shorter because points outside of 
                 # the area are removed. If it is now shorter, we ignore it 
                 if (len(new_traj) >= min_trajectory_length):
-                    # Add to either the training, validation, or test list 
+                    # Add to either the training, or validation list 
                     if len(all_train) < num_train:
                         all_train.append(new_traj)
                     elif len(all_validation) < num_validation:

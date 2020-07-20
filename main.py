@@ -2,6 +2,7 @@
 
 from argparse import ArgumentParser 
 import datetime 
+import numpy as np 
 import time 
 
 from arg_processor import ArgProcessor
@@ -9,6 +10,7 @@ from cell_generator import CellGenerator
 from cell_processor import CellProcessor 
 from file_reader import FileReader
 from file_writer import FileWriter 
+from test_file_reader import TestFileReader
 from traj_processor import TrajProcessor 
 
 def main():
@@ -47,6 +49,7 @@ def main():
                                                    bounding_box_coords,
                                                    traj_nums) 
         [all_traj, num_lines] = dt 
+        line_start = num_lines + 2
         
         # First loop through the raw trajectories 
         print("Processing raw trajectories.")
@@ -149,49 +152,43 @@ def main():
             all_grids = file_reader.read_npy(output_directory, all_cells_name)
             cell_dict_name = arg_processor.cell_dict_name
             key_lookup_dict = file_reader.read_npy(output_directory, cell_dict_name).item()
+            line_start = arg_processor.line_start
     
-    
-        print(type(key_lookup_dict))
-        print(type(all_grids))
-        print(len(key_lookup_dict)) 
-        print(all_grids.shape)
-        assert False 
-        d_sel_mode = arg_processor.data_selection_mode 
-        if d_sel_mode == 'split':
-            maxdb = max(arg_processor.nums_db)
-            all_test_tri = traj_processor.first_loop_test_split(all_test, 
-                                                                arg_processor.num_q,
-                                                                maxdb, all_grids, 
-                                                                bounding_box_coords,
-                                                                span, stride)
-            max_num_db = max(arg_processor.nums_db)
-            test_data = traj_processor.process_test_data_split(all_test_tri, 
-                                                              key_lookup_dict,
-                                                              max_num_db,
-                                                              min_trajectory_length)
-        else:
-            #test_data = traj_processor.process_test_data()
-            assert False, "NOT IMPLEMENTED YET" 
+        # Initializes the file reader 
+        input_file_path = arg_processor.input_file_path
+        bbox_coords = arg_processor.bounding_box_coords
+        test_reader = TestFileReader(input_file_path, line_start, bbox_coords,
+                                     all_grids, key_lookup_dict)
         
+        # Start with reading the query data
+        num_q = arg_processor.num_q 
+        num_db = max(arg_processor.nums_db)
+        min_traj_len = arg_processor.min_trajectory_length
+        max_traj_len = arg_processor.max_trajectory_length
+        d_sel_mode = arg_processor.data_selection_mode
+        dataset_mode = arg_processor.dataset_mode
+        q_start_ID = 1
+        [q, qdb] = test_reader.process_data(num_q, dataset_mode, 
+                                            d_sel_mode, min_traj_len, 
+                                            max_traj_len, q_start_ID)
+        
+        # Start the ID from the query's biggest ID 
+        db_start_ID = q[-1][0] + 1
+        [db, _] = test_reader.process_data(num_db, dataset_mode,
+                                           d_sel_mode, min_traj_len,
+                                           max_traj_len, db_start_ID)
         
         # Write to the output files 
         print("Writing to output files") 
         writer = FileWriter()
         output_directory = arg_processor.output_directory
-        train_name = "1_training"
-        validation_name = "1_validation"
-        topk_name = "1_topk"
-        
-        
         if d_sel_mode == "split":
             test_name = "_test"
-            writer.write_test_data_split(test_data[0], 
-                                         test_data[1], 
-                                         arg_processor.num_q,
-                                         arg_processor.nums_db, 
-                                         test_name, 
+            writer.write_test_data_split(q, qdb, db, num_q, 
+                                         arg_processor.nums_db, test_name, 
                                          output_directory)
-        writer.write_topk(topk_id, topk_weight, topk_name, output_directory)
+        else:
+            assert False, "NOT IMPLEMENTED" 
         
         # Finally, create a copy of the .ini file to the output directory
         writer.copy_ini_file(ini_path, output_directory)

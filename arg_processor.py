@@ -130,6 +130,7 @@ class ArgProcessor():
                                  "0 or greater.")
         
         ## TEST section 
+        self.line_start = int(config['TEST']['LineStart'])
         self.data_selection_mode = config['TEST']['DataSelectionMode'].lower()
         # Check validity 
         self.data_selection_modes = ['split','downsample']
