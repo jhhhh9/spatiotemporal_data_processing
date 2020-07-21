@@ -151,7 +151,7 @@ def main():
             all_cells_name = arg_processor.all_cells_name
             all_grids = file_reader.read_npy(output_directory, all_cells_name)
             cell_dict_name = arg_processor.cell_dict_name
-            key_lookup_dict = file_reader.read_npy(output_directory, cell_dict_name).item()
+            #key_lookup_dict = file_reader.read_npy(output_directory, cell_dict_name).item()
             line_start = arg_processor.line_start
     
         # Initializes the file reader 
