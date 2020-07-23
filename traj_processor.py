@@ -218,6 +218,8 @@ class TrajProcessor():
         flattened_pairs = []
         id = 0 
         for one_pair in all_traj_pairs:
+            print("Flattening trajectory pairs: %d out of %d" % \
+                  (id, len(all_traj_pairs)))
             [[gt, gt_patt], q] = copy.deepcopy(one_pair)
             for one_q in q:
                 flattened_pairs.append([id, [gt, gt_patt, one_q]])
@@ -254,7 +256,11 @@ class TrajProcessor():
         """
         all_x = []
         all_y = []
+        num_traj = 0 
         for one_pair in all_pairs:
+            num_traj += 1
+            print("Processing train/val data: %d out of %d" %\
+                  (num_traj, len(all_pairs)))
             [_, [gt, gt_patt, q]] = one_pair 
             gt = self.__keep_id_only(gt)
             gt_patt_s = np.array([np.array(x[[0]]) for x in gt_patt])

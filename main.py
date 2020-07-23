@@ -99,8 +99,10 @@ def main():
                                                           min_query_length)
         
         # Preparing the data for printing 
+        print("Preparing training data")
         train_data = traj_processor.flatten_traj_pairs(all_train_pairs)
         train_data = traj_processor.process_training_data(train_data)
+        print("Preparing validation data")
         val_data = traj_processor.flatten_traj_pairs(all_validation_pairs)
         val_data = traj_processor.process_training_data(val_data)
         
