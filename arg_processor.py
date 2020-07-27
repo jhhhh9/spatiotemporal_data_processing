@@ -107,10 +107,10 @@ class ArgProcessor():
         self.num_val = int(config['TRAINVAL']['NumVal'])
         self.point_drop_rates = ast.literal_eval(config['TRAINVAL']
                                                        ['PointDropRates'])
-        self.spatial_distortions = ast.literal_eval(config['TRAINVAL']
-                                                         ['SpatialDistortions'])
+        self.spatial_distortion_rates = ast.literal_eval(config['TRAINVAL']
+                                                     ['SpatialDistortionRates'])
         self.temporal_distortions = ast.literal_eval(config['TRAINVAL']
-                                                        ['TemporalDistortions'])
+                                                    ['TemporalDistortions'])
         ## Check validity 
         if self.num_train <= 0: 
             raise ValueError("NumTrain must be greater than 0")
@@ -120,10 +120,10 @@ class ArgProcessor():
             if x < 0 or x > 1:
                 raise ValueError("All values in PointDropRates must be " +
                                  "between 0 and 1 inclusive.")
-        for x in self.spatial_distortions:
-            if x < 0:
-                raise ValueError("All values in SpatialDistortions must be " + 
-                                 "0 or greater.")
+        for x in self.spatial_distortion_rates:
+            if x < 0 or x > 1:
+                raise ValueError("All values in SpatialDistortionRates must " + 
+                                 "be between 0 and 1")
         for x in self.temporal_distortions:
             if x < 0:
                 raise ValueError("All values in TemporalDistortions must be " + 
@@ -131,36 +131,26 @@ class ArgProcessor():
         
         ## TEST section 
         self.line_start = int(config['TEST']['LineStart'])
-        self.data_selection_mode = config['TEST']['DataSelectionMode'].lower()
+        self.num_q = int(config['TEST']['NumQ'])
+        self.nums_db = ast.literal_eval(config['TEST']['NumsDB'])
+        self.drop_rate = float(config['TEST']['DropRate'])
+        self.test_spatial_distortion = float(config['TEST']\
+                                                 ['TestSpatialDistortion'])
+        self.test_temporal_distortion = int(config['TEST']\
+                                                  ['TestTemporalDistortion'])
         # Check validity 
-        self.data_selection_modes = ['split','downsample']
-        if self.data_selection_mode not in self.data_selection_modes:
-            raise ValueError("DataSelectionMode not supported. Available " + 
-                             "modes are: " + str(self.data_selection_modes))
-                             
-        ## TESTSPLIT or TESTDROP section, depends on data_selection_mode
-        if self.data_selection_mode == 'split':
-            self.num_q = int(config['TESTSPLIT']['NumQ'])
-            self.nums_db = ast.literal_eval(config['TESTSPLIT']['NumsDB'])
-            # Check validity 
-            if self.num_q <= 0:
-                raise ValueError("NumQ must be greater than 0.")
-            for x in self.nums_db:
-                if x <= 0:
-                    raise ValueError("All values in NumsDB must be greater " + 
-                                     "than 0")
-        elif self.data_selection_mode == 'drop':
-            self.point_drop_rates_test = ast.literal_eval(config['TESTDROP']
-                                                         ['PointDropRatesTest'])
-            self.num_test = int(config['TESTDROP']['NumTest'])
-            # Check validity 
-            for x in self.point_drop_rates_test:
-                if x < 0 or x > 1:
-                    raise ValueError("All values in PointDropRatesTest must " +
-                                     "be between 0 and 1 inclusive.")
-            if self.num_test <= 0:
-                raise ValueError("NumTest must be greater than 0")
-
+        if self.num_q <= 0:
+            raise ValueError("NumQ must be greater than 0.") 
+        for x in self.nums_db:
+            if x <= 0:
+                raise ValueError("All values in NumsDB must be greater than 0.")
+        if self.drop_rate < 0:
+            raise ValueError("DropRate must not be negative")
+        if self.test_spatial_distortion < 0 or self.test_spatial_distortion > 1:
+            raise ValueError("TestSpatialDistortion must be between 0 and 1")
+        if self.test_temporal_distortion < 0:
+            raise ValueError("TestTemporalDistortion must not be negative")
+       
         ## PATTERN section 
         self.span = int(config['PATTERN']['Span'])
         self.stride = int(config['PATTERN']['Stride'])

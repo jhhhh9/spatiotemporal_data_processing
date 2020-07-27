@@ -55,7 +55,7 @@ def main():
         print("Processing raw trajectories.")
         traj_processor = TrajProcessor()
         point_drop_rates = arg_processor.point_drop_rates
-        spatial_distortions = arg_processor.spatial_distortions
+        spatial_distortions = arg_processor.spatial_distortion_rates
         temporal_distortions = arg_processor.temporal_distortions
         span = arg_processor.span 
         stride = arg_processor.stride 
@@ -153,7 +153,8 @@ def main():
             all_cells_name = arg_processor.all_cells_name
             all_grids = file_reader.read_npy(output_directory, all_cells_name)
             cell_dict_name = arg_processor.cell_dict_name
-            #key_lookup_dict = file_reader.read_npy(output_directory, cell_dict_name).item()
+            key_lookup_dict = file_reader.read_npy(output_directory, 
+                                                   cell_dict_name).item()
             line_start = arg_processor.line_start
     
         # Initializes the file reader 
@@ -165,35 +166,37 @@ def main():
         # Start with reading the query data
         num_q = arg_processor.num_q 
         num_db = max(arg_processor.nums_db)
+        drop_rate = arg_processor.drop_rate 
+        s_distort = arg_processor.test_spatial_distortion
+        t_distort = arg_processor.test_temporal_distortion
         min_traj_len = arg_processor.min_trajectory_length
         max_traj_len = arg_processor.max_trajectory_length
-        d_sel_mode = arg_processor.data_selection_mode
         dataset_mode = arg_processor.dataset_mode
         q_start_ID = 1
-        [q, qdb] = test_reader.process_data(num_q, dataset_mode, 
-                                            d_sel_mode, min_traj_len, 
-                                            max_traj_len, q_start_ID)
+        [q, qdb] = test_reader.process_data(num_q, dataset_mode, min_traj_len, 
+                                            max_traj_len, drop_rate, 
+                                            s_distort, t_distort, q_start_ID)
         
         # Start the ID from the query's biggest ID 
         db_start_ID = q[-1][0] + 1
-        [db, _] = test_reader.process_data(num_db, dataset_mode,
-                                           d_sel_mode, min_traj_len,
-                                           max_traj_len, db_start_ID)
+        [db, _] = test_reader.process_data(num_db, dataset_mode, min_traj_len, 
+                                           max_traj_len, drop_rate, 
+                                           s_distort, t_distort, q_start_ID)
         
         # Write to the output files 
         print("Writing to output files") 
         writer = FileWriter()
         output_directory = arg_processor.output_directory
-        if d_sel_mode == "split":
-            test_name = "_test"
-            writer.write_test_data_split(q, qdb, db, num_q, 
-                                         arg_processor.nums_db, test_name, 
-                                         output_directory)
-        else:
-            assert False, "NOT IMPLEMENTED" 
+        test_name = "_test"
+        writer.write_test_data_split(q, qdb, db, num_q, 
+                                     arg_processor.nums_db, test_name, 
+                                     output_directory)
         
         # Finally, create a copy of the .ini file to the output directory
         writer.copy_ini_file(ini_path, output_directory)
+        
+        # and close the file reader 
+        test_reader.close_file()
     
 if __name__ == "__main__":
     start_dt = datetime.datetime.now()

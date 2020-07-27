@@ -37,10 +37,10 @@ class TrajProcessor():
         Args:
             all_traj: (list of lists) List of all trajectories 
             point_drop_rates: (list of floats) List of all drop rates 
-            spatial_distortions: (list of integers) List of all spatial 
-                                  distortion rates. Unit is in meters 
+            spatial_distortions: (list of floats) List of all spatial 
+                                  distortion rates. 
             temporal_distortions: (list of integers) List of all temporal 
-                                   distortion rates. Unit is in minutes. 
+                                   distortion amounts. Unit is in minutes
             all_cells: (3D numpy array) All grid cells 
             bbox_coords: (list of double) List of four coordinates that 
                           determine the entire valid area, e.g. the city the 
@@ -614,22 +614,41 @@ class TrajProcessor():
         return all_ranges
         
 
-    def __distort_spatiotemporal_traj(self, traj, max_spatial_distortion, 
-                                      max_temporal_distortion, bbox):
+    def __distort_spatiotemporal_traj(self, traj, s_dist_rate, t_dist, bbox):
         """
         Distorts a trajectory both spatially and temporally 
         
         Args:
             traj: (list) List of trajectory points, containing both the 
                    spatial and temporal information 
-            max_spatial_distortion: (integer) The maximum spatial distortion 
-                                    (in meters)
-            max_temporal_distortion: (integer) The maximum temporal distortion 
-                                     (in minutes) 
+            s_dist_rate: (float) The rate of the spatial distortion 
+            t_dist: (integer) The maximum temporal distortion  (in minutes) 
             bbox: (shapely Polygon) A polygon that represents the valid area
         """
         traj_ = copy.deepcopy(traj) 
+        # If s_dist_rate is 0, skip the spatial distortion 
+        if s_dist_rate != 0:
+            for traj_point in traj_:
+                if random.random() < s_dist_rate:
+                    self.__distort_spatial_fix(traj_point, bbox)
+        if t_dist != 0:
+            self.__distort_temporal_traj(traj_, t_dist)
+        return traj_ 
+
+    """
+    def __distort_spatiotemporal_traj(self, traj, s_dist_rates, t_dist_rates, 
+                                      bbox):
+        Distorts a trajectory both spatially and temporally 
         
+        Args:
+            traj: (list) List of trajectory points, containing both the 
+                   spatial and temporal information 
+            s_dist_rates: (integer) The maximum spatial distortion 
+                                    (in meters)
+            t_dist: (integer) The maximum temporal distortion 
+                                     (in minutes) 
+            bbox: (shapely Polygon) A polygon that represents the valid area
+        traj_ = copy.deepcopy(traj) 
         # Do not do the distortion if the spatial distortion is 0, same for 
         # temporal 
         if max_spatial_distortion != 0:
@@ -641,7 +660,6 @@ class TrajProcessor():
 
 
     def __distort_spatial(self, traj_point, max_spatial_distortion, bbox):
-        """
         Performs the spatial distortion. This is done by randomizing a bearing 
         and shifts the point a random distance in that bearing. The random 
         distance is limited by max_spatial_distortion. If after the distortion 
@@ -655,7 +673,6 @@ class TrajProcessor():
                                     latitude and longitude points can be 
                                     distorted to. Unit is in meters. 
             bbox: (shapely Polygon) A polygon that represents the valid area
-        """
         # Convert lat and lng to radians 
         [old_lat, old_lng, _] = traj_point 
         lat1 = math.radians(old_lat)
@@ -680,8 +697,49 @@ class TrajProcessor():
         if bbox.contains(new_point):
             traj_point[0] = lat2
             traj_point[1] = lng2 
+    """
         
+    def __distort_spatial_fix(self, traj_point, bbox):
+        """
+        Performs the spatial distortion. This is done by randomizing a bearing 
+        and shifts the point a random distance in that bearing. The random 
+        distance is limited by max_spatial_distortion. If after the distortion 
+        the point is outside the valid area, revert it to the original position.
+        Calculation is from: stackoverflow question #7222382
         
+        This version doesn't take the maximum spatial distortion as the 
+        argument; it is set at a fixed 30 meters. 
+        
+        Args:
+            traj_point: (list)The triplet of latitude, longitude, timestamp that 
+                        we want to distort spatially 
+            bbox: (shapely Polygon) A polygon that represents the valid area
+        """
+        # Convert lat and lng to radians 
+        [old_lat, old_lng, _] = traj_point 
+        lat1 = math.radians(old_lat)
+        lng1 = math.radians(old_lng)
+        
+        # Calculate the new point 
+        degree = random.randint(1,360)
+        bearing = math.radians(degree)
+        distort_dist = random.randint(0, 30)
+        d_r =  distort_dist / self.__R_EARTH
+        lat2 = math.asin(math.sin(lat1) * math.cos(d_r) + 
+                         math.cos(lat1) * math.sin(d_r) * math.cos(bearing))
+        lng2 = lng1+math.atan2(math.sin(bearing)*math.sin(d_r)*math.cos(lat1), 
+                               math.cos(d_r) - math.sin(lat1) * math.sin(lat2))
+        lat2 = math.degrees(lat2)
+        lng2 = math.degrees(lng2) 
+        
+        # There is a chance that the distorted points will be outside of the 
+        # area. In this case, the easiest way to handle this is to use the 
+        # original latitude and longitude 
+        new_point = Point(lat2, lng2)
+        if bbox.contains(new_point):
+            traj_point[0] = lat2
+            traj_point[1] = lng2 
+
     def __distort_temporal_traj(self, trajectory, max_temporal_distortion):
         """
         Performs temporal distortion by adding or subtracting minutes from
