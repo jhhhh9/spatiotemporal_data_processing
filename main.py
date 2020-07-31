@@ -49,7 +49,7 @@ def main():
                                                    bounding_box_coords,
                                                    traj_nums) 
         [all_traj, num_lines] = dt 
-        line_start = num_lines + 2
+        line_start = num_lines
         
         # First loop through the raw trajectories 
         print("Processing raw trajectories.")
@@ -181,7 +181,7 @@ def main():
         db_start_ID = q[-1][0] + 1
         [db, _] = test_reader.process_data(num_db, dataset_mode, min_traj_len, 
                                            max_traj_len, drop_rate, 
-                                           s_distort, t_distort, q_start_ID)
+                                           s_distort, t_distort, db_start_ID)
         
         # Write to the output files 
         print("Writing to output files") 
