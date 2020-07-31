@@ -16,18 +16,16 @@ class TrajProcessor():
     Takes a list of trajectories and processes it to output a model-ready 
     dataset. 
     """
-    def __init__(self, seed):
+    def __init__(self):
         """
         Initializes several important constants 
         """
         self.__MINUTES_IN_DAY = 1440
         self.__R_EARTH = 6378137
-        random.seed(seed)
         
 
-    def first_loop(self, all_traj, point_drop_rates, max_spatial_distortion, 
-                   max_temporal_distortion, all_cells, bbox_coords, span, 
-                   stride):
+    def first_loop(self, all_traj, point_drop_rates, spatial_distortions, 
+                   temporal_distortions, all_cells, bbox_coords, span, stride):
         """
         The first loop through the whole dataset performs several tasks:
         1. Generate query trajectories from ground truth by downsampling it 
@@ -39,12 +37,10 @@ class TrajProcessor():
         Args:
             all_traj: (list of lists) List of all trajectories 
             point_drop_rates: (list of floats) List of all drop rates 
-            max_spatial_distortion: (integer) The maximum distance that the 
-                                     latitude and longitude points can be 
-                                     distorted to. Unit is in meters. 
-            max_temporal_distortion: (integer) The maximum time that the 
-                                      original timestamp can be distorted to. 
-                                      Unit is in minutes. 
+            spatial_distortions: (list of floats) List of all spatial 
+                                  distortion rates. 
+            temporal_distortions: (list of integers) List of all temporal 
+                                   distortion amounts. Unit is in minutes
             all_cells: (3D numpy array) All grid cells 
             bbox_coords: (list of double) List of four coordinates that 
                           determine the entire valid area, e.g. the city the 
@@ -70,32 +66,33 @@ class TrajProcessor():
         for i in range(len(all_traj)):
             print("Processing trajectory (1st loop) " + str(i+1) + " out of " +
                    str(len(all_traj)))
+                   
             # Generate the downsampled trajectories
+            all_cur_traj_q = []
             cur_traj_q = self.__downsample_trajectory(all_traj[i],
                                                       point_drop_rates)
             
             # Distort the downsampled trajectories 
-            for j in range(len(cur_traj_q)):
-                one_traj_q = cur_traj_q[j]
-                for traj_point in one_traj_q:
-                    self.__distort_spatial(traj_point, max_spatial_distortion,  
-                                           bbox)
-                self.__distort_temporal_traj(one_traj_q, 
-                                             max_temporal_distortion)
-                                             
-                # Also grid the trajectories 
-                cur_traj_q[j] = self.__grid_trajectory(one_traj_q, all_cells)
+            for traj_q in cur_traj_q:
+                for s in spatial_distortions:
+                    for t in temporal_distortions:
+                        traj_q_new = self.__distort_spatiotemporal_traj(traj_q,
+                                                                        s, t, 
+                                                                        bbox)
+                        # Also grid the trajectories 
+                        traj_q_new = self.__grid_trajectory(traj_q_new, 
+                                                            all_cells)
+                        all_cur_traj_q.append(traj_q_new) 
                 
             # Grid the ground truth trajectory 
             gt_traj_grid = self.__grid_trajectory(all_traj[i], all_cells)
             
-            # Get the pattern features for the ground truth and all query 
-            # trajectories. 
+            # Get the pattern features for the ground truth 
             all_ranges = self.__create_pattern_ranges(span, stride)
             gt_patt_features = self.__get_pattern_features(gt_traj_grid, 
                                                            all_ranges)
-            gt_data = [gt_traj_grid, gt_patt_features]
-            all_pairs.append([gt_data, cur_traj_q])
+            gt_data = [gt_traj_grid, gt_patt_features]  
+            all_pairs.append([gt_data, all_cur_traj_q])
         return all_pairs 
 
 
@@ -144,8 +141,8 @@ class TrajProcessor():
                 if len(new_q) > 0:
                     new_all_traj_pairs.append([[new_gt, np.array(gt[1])], new_q])
         return new_all_traj_pairs
-        
-        
+
+
     def split_and_process_dataset(self, all_traj_pairs, num_data):
         """
         Splits all the trajectories to the training, validation, and test 
@@ -199,13 +196,38 @@ class TrajProcessor():
                                     num_train + num_val + num_test]
         
         # Process the training and validation data 
-        train_processed = self.__process_training_data(train_pairs)
-        val_processed = self.__process_training_data(val_pairs) 
+        train_processed = self.process_training_data(train_pairs)
+        val_processed = self.process_training_data(val_pairs) 
         test_processed = self.__process_test_data(test_pairs)
         return [train_processed, val_processed, test_processed]
         
         
-    def __process_training_data(self, all_pairs):
+    def flatten_traj_pairs(self, all_traj_pairs):
+        """
+        A ground truth is associated with one or more queries. This messes 
+        up the calculation of the actual pairs. Here, we "flatten" them 
+        first by creating a pair for every ground truth and query 
+        
+        Args:
+            all_traj_pairs: (list) List of all gt-q pairs 
+            
+        Returns 
+            List of "flattened" trajectory pairs, in which a ground truth is 
+            matched with one and only one query. 
+        """
+        flattened_pairs = []
+        id = 0 
+        for one_pair in all_traj_pairs:
+            print("Flattening trajectory pairs: %d out of %d" % \
+                  (id, len(all_traj_pairs)))
+            [[gt, gt_patt], q] = copy.deepcopy(one_pair)
+            for one_q in q:
+                flattened_pairs.append([id, [gt, gt_patt, one_q]])
+            id += 1
+        return flattened_pairs
+        
+        
+    def process_training_data(self, all_pairs):
         """
         Given an input dataset, process it for the training part. The output 
         consists of x (the input data) and y (the value the model should 
@@ -234,7 +256,11 @@ class TrajProcessor():
         """
         all_x = []
         all_y = []
+        num_traj = 0 
         for one_pair in all_pairs:
+            num_traj += 1
+            print("Processing train/val data: %d out of %d" %\
+                  (num_traj, len(all_pairs)))
             [_, [gt, gt_patt, q]] = one_pair 
             gt = self.__keep_id_only(gt)
             gt_patt_s = np.array([np.array(x[[0]]) for x in gt_patt])
@@ -248,52 +274,6 @@ class TrajProcessor():
             all_y.append(one_y)
         return [np.array(all_x), np.array(all_y)]
         
-
-    def __process_test_data(self, all_pairs):
-        """
-        Given an input dataset, transform it to a format that can be used for 
-        the testing. This involves storing the ground truth and query 
-        trajectories in a list alongside their ID. 
-        
-        Args:
-            all_pairs: (list) List of all ground truth-query trajectory pairs 
-            
-        Returns:
-            A list of two elements. The first element is a list of all 
-            ground truth trajectories and the second is a list of all query 
-            trajectories 
-        """
-        # Since a ground truth may have multiple queries associated with it, 
-        # there may be duplicate ground truths. We have to eliminate th 
-        # duplicates while ensuring that the associated query is still matched 
-        # to the correct ground truth 
-        gt_dict = {}
-        all_q = []
-        all_gt = []
-        
-        # Process and then append ground truth 
-        for pair in all_pairs:
-            [id, [gt, _, q]] = pair 
-            
-            # Check if all_gt contains the ground truth trajectory.
-            # If no, add to all_gt. If yes, get the ID 
-            if str(gt) in gt_dict:
-                # Cannot use list as a dict key, just convert to str 
-                cur_id = gt_dict[str(gt)]
-            else:
-                gt_dict[str(gt)] = id 
-                cur_id = id 
-            
-            # Keep only the IDs 
-            gt = self.__keep_id_only(copy.deepcopy(gt))
-            q = self.__keep_id_only(copy.deepcopy(q)) 
-            all_gt.append(np.array([id, gt]))
-            all_q.append(np.array([id, q]))
-        
-        all_gt = np.array(all_gt)
-        all_q = np.array(all_q)         
-        return [all_gt, all_q]
-            
 
     def __remove_non_hot_cells(self, trajectory, key_lookup_dict):
         """
@@ -634,22 +614,65 @@ class TrajProcessor():
         return all_ranges
         
 
-    def __distort_spatial(self, traj_point, max_spatial_distortion, bbox):
+    def __distort_spatiotemporal_traj(self, traj, s_dist_rate, t_dist, bbox):
         """
+        Distorts a trajectory both spatially and temporally 
+        
+        Args:
+            traj: (list) List of trajectory points, containing both the 
+                   spatial and temporal information 
+            s_dist_rate: (float) The rate of the spatial distortion 
+            t_dist: (integer) The maximum temporal distortion  (in minutes) 
+            bbox: (shapely Polygon) A polygon that represents the valid area
+        """
+        traj_ = copy.deepcopy(traj) 
+        # If s_dist_rate is 0, skip the spatial distortion 
+        if s_dist_rate != 0:
+            for traj_point in traj_:
+                if random.random() < s_dist_rate:
+                    self.__distort_spatial_fix(traj_point, bbox)
+        if t_dist != 0:
+            self.__distort_temporal_traj(traj_, t_dist)
+        return traj_ 
+
+    """
+    def __distort_spatiotemporal_traj(self, traj, s_dist_rates, t_dist_rates, 
+                                      bbox):
+        Distorts a trajectory both spatially and temporally 
+        
+        Args:
+            traj: (list) List of trajectory points, containing both the 
+                   spatial and temporal information 
+            s_dist_rates: (integer) The maximum spatial distortion 
+                                    (in meters)
+            t_dist: (integer) The maximum temporal distortion 
+                                     (in minutes) 
+            bbox: (shapely Polygon) A polygon that represents the valid area
+        traj_ = copy.deepcopy(traj) 
+        # Do not do the distortion if the spatial distortion is 0, same for 
+        # temporal 
+        if max_spatial_distortion != 0:
+            for traj_point in traj_:
+                self.__distort_spatial(traj_point, max_spatial_distortion, bbox)
+        if max_temporal_distortion != 0:
+            self.__distort_temporal_traj(traj_, max_temporal_distortion)
+        return traj_ 
+
+
+    def __distort_spatial(self, traj_point, max_spatial_distortion, bbox):
         Performs the spatial distortion. This is done by randomizing a bearing 
         and shifts the point a random distance in that bearing. The random 
         distance is limited by max_spatial_distortion. If after the distortion 
         the point is outside the valid area, revert it to the original position.
         Calculation is from: stackoverflow question #7222382
         
-        Input:
+        Args:
             traj_point: (list)The triplet of latitude, longitude, timestamp that 
                         we want to distort spatially 
             max_spatial_distortion: (integer) The maximum distance that the 
                                     latitude and longitude points can be 
                                     distorted to. Unit is in meters. 
             bbox: (shapely Polygon) A polygon that represents the valid area
-        """
         # Convert lat and lng to radians 
         [old_lat, old_lng, _] = traj_point 
         lat1 = math.radians(old_lat)
@@ -658,7 +681,7 @@ class TrajProcessor():
         # Calculate the new point 
         degree = random.randint(1,360)
         bearing = math.radians(degree)
-        distort_dist = random.randint(1, max_spatial_distortion)
+        distort_dist = random.randint(0, max_spatial_distortion)
         d_r =  distort_dist / self.__R_EARTH
         lat2 = math.asin(math.sin(lat1) * math.cos(d_r) + 
                          math.cos(lat1) * math.sin(d_r) * math.cos(bearing))
@@ -674,8 +697,49 @@ class TrajProcessor():
         if bbox.contains(new_point):
             traj_point[0] = lat2
             traj_point[1] = lng2 
+    """
         
+    def __distort_spatial_fix(self, traj_point, bbox):
+        """
+        Performs the spatial distortion. This is done by randomizing a bearing 
+        and shifts the point a random distance in that bearing. The random 
+        distance is limited by max_spatial_distortion. If after the distortion 
+        the point is outside the valid area, revert it to the original position.
+        Calculation is from: stackoverflow question #7222382
         
+        This version doesn't take the maximum spatial distortion as the 
+        argument; it is set at a fixed 30 meters. 
+        
+        Args:
+            traj_point: (list)The triplet of latitude, longitude, timestamp that 
+                        we want to distort spatially 
+            bbox: (shapely Polygon) A polygon that represents the valid area
+        """
+        # Convert lat and lng to radians 
+        [old_lat, old_lng, _] = traj_point 
+        lat1 = math.radians(old_lat)
+        lng1 = math.radians(old_lng)
+        
+        # Calculate the new point 
+        degree = random.randint(1,360)
+        bearing = math.radians(degree)
+        distort_dist = random.randint(0, 30)
+        d_r =  distort_dist / self.__R_EARTH
+        lat2 = math.asin(math.sin(lat1) * math.cos(d_r) + 
+                         math.cos(lat1) * math.sin(d_r) * math.cos(bearing))
+        lng2 = lng1+math.atan2(math.sin(bearing)*math.sin(d_r)*math.cos(lat1), 
+                               math.cos(d_r) - math.sin(lat1) * math.sin(lat2))
+        lat2 = math.degrees(lat2)
+        lng2 = math.degrees(lng2) 
+        
+        # There is a chance that the distorted points will be outside of the 
+        # area. In this case, the easiest way to handle this is to use the 
+        # original latitude and longitude 
+        new_point = Point(lat2, lng2)
+        if bbox.contains(new_point):
+            traj_point[0] = lat2
+            traj_point[1] = lng2 
+
     def __distort_temporal_traj(self, trajectory, max_temporal_distortion):
         """
         Performs temporal distortion by adding or subtracting minutes from
