@@ -538,14 +538,6 @@ class TestFileProcessor():
         trajectory_ = copy.deepcopy(trajectory)
         traj_id = np.array([np.array([x[0]]) for x in trajectory_])
         raw_traj = np.array([x[1] for x in trajectory_])
-        print(trajectory)
-        print("")
-        print(traj_id)
-        input("========")
-        print(trajectory)
-        print("")
-        print(raw_traj)
-        assert False 
         return [traj_id, raw_traj]
         
 
