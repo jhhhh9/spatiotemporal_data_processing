@@ -130,7 +130,6 @@ class ArgProcessor():
                                  "0 or greater.")
         
         ## TEST section 
-        self.line_start = int(config['TEST']['LineStart'])
         self.num_q = int(config['TEST']['NumQ'])
         self.nums_db = ast.literal_eval(config['TEST']['NumsDB'])
         self.drop_rate = float(config['TEST']['DropRate'])

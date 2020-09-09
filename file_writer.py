@@ -76,7 +76,7 @@ class FileWriter():
             f.write("\ndata_y shape: " + str(data_y.shape))
             f.write("\nLines read: " + str(num_lines))
         
-            
+    
     def write_test_data(self, data_q, data_gt, file_name, output_directory):
         """
         Writes the test data to files in the specified directory 
@@ -98,9 +98,10 @@ class FileWriter():
             f.write("Dataset contents: 'data_gt', 'data_q'" )
             f.write("\ndata_gt shape: " + str(data_gt.shape))
             f.write("\ndata_q shape: " + str(data_q.shape))
+    
             
-            
-    def write_test_data_split(self, data_q, data_qdb, data_db, num_q, nums_db, 
+    def write_test_data_split(self, data_q, data_qdb, data_db, data_qraw, 
+                              data_qdbraw, data_dbraw, num_q, nums_db, 
                               file_name, output_directory):
         """
         Writes the test data for the case when the data selection mode is 
@@ -118,23 +119,41 @@ class FileWriter():
             output_directory: (string) The output directory for the data files 
         """
         # Write q to an .npy file
-        output_path_q = pathlib.Path(output_directory) / ("1"+file_name + "_q")
-        np.save(output_path_q, data_q)
+        # Gridded trajectories 
+        path_q = pathlib.Path(output_directory) / ("1"+file_name + "_q")
+        np.save(path_q, data_q)
+        
+        # Raw trajectories 
+        path_qraw = pathlib.Path(output_directory) / ("1"+file_name+"_q_raw")
+        np.save(path_qraw, data_qraw)
         
         # Write all dbs to .npy files 
         db_shapes = []
+        dbraw_lens = []
         for i in range(len(nums_db)):
-            db_name = str(i+1) + file_name + "_db"
-            output_path_gt = pathlib.Path(output_directory) / db_name
+            # Gridded trajectories 
+            path_db = str(i+1) + file_name + "_db"
+            output_path_db = pathlib.Path(output_directory) / path_db
             data_qdb_db = np.concatenate((data_qdb, data_db[:nums_db[i]]))
             db_shapes.append(data_qdb_db.shape)
-            np.save(output_path_gt, data_qdb_db) 
+            np.save(output_path_db, data_qdb_db) 
+            
+            # Raw trajectories 
+            path_dbraw = str(i+1) + file_name + "_db_raw"
+            output_path_dbraw = pathlib.Path(output_directory) / path_dbraw
+            data_qdb_db_raw = np.concatenate((data_qdbraw, 
+                                              data_dbraw[:nums_db[i]]))
+            dbraw_lens.append(data_qdb_db_raw.shape)
+            np.save(output_path_dbraw, data_qdb_db_raw)
         
-        output_path = pathlib.Path(output_directory) / ("1" + file_name)
+        output_path = pathlib.Path(output_directory) / ("1" + file_name + "log")
         with open(output_path.with_suffix(".txt"), 'w') as f:
-            f.write("Dataset contents: 'data_gt', 'data_q'" )
+            f.write("Dataset contents: 'data_gt', 'data_q', 'data_gt_raw " +
+                     "data_q_raw")
             f.write("\ndata_q shape: " + str(data_q.shape))
-            f.write("\ndata_gt shape: " + str([x for x in db_shapes]))
+            f.write("\ndata_db shape: " + str([x for x in db_shapes]))
+            f.write("\ndata_qraw len: " + str(data_qraw.shape))
+            f.write("\ndata_dbraw len:" + str([x for x in dbraw_lens]))
   
   
     def write_topk(self, topk_id, topk_weight, file_name_id, file_name_weight,

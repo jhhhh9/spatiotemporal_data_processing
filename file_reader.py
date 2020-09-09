@@ -135,13 +135,15 @@ class FileReader():
                 # the area are removed. If it is now shorter, we ignore it 
                 if (len(new_traj) >= min_trajectory_length):
                     # Add to either the training, or validation list 
-                    if len(all_train) < num_train:
+                    if num_lines <= num_train:
                         all_train.append(new_traj)
-                    elif len(all_validation) < num_validation:
+                        print("READING TRAINING DATA %d" % (num_lines))
+                    elif num_lines < num_validation + num_train:
                         all_validation.append(new_traj)
+                        print("READING VALIDATION DATA %d" % (num_lines))
                     else:
                         break 
-        return [[all_train, all_validation], num_lines]
+        return [all_train, all_validation]
         
 
     def __check_point_and_add_timestamp(self, trajectory, start_second):
