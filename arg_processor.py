@@ -130,6 +130,8 @@ class ArgProcessor():
                                  "0 or greater.")
         
         ## TEST section 
+        self.test_q_name = config['TEST']['TestQName']
+        self.test_db_name = config['TEST']['TestDBName']
         self.num_q = int(config['TEST']['NumQ'])
         self.nums_db = ast.literal_eval(config['TEST']['NumsDB'])
         self.drop_rate = float(config['TEST']['DropRate'])
@@ -143,8 +145,8 @@ class ArgProcessor():
         for x in self.nums_db:
             if x <= 0:
                 raise ValueError("All values in NumsDB must be greater than 0.")
-        if self.drop_rate < 0:
-            raise ValueError("DropRate must not be negative")
+        if self.drop_rate < 0 or self.drop_rate > 1:
+            raise ValueError("DropRate must be between 0 and 1")
         if self.test_spatial_distortion < 0 or self.test_spatial_distortion > 1:
             raise ValueError("TestSpatialDistortion must be between 0 and 1")
         if self.test_temporal_distortion < 0:

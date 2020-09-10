@@ -102,7 +102,7 @@ class FileWriter():
             
     def write_test_data_split(self, data_q, data_qdb, data_db, data_qraw, 
                               data_qdbraw, data_dbraw, num_q, nums_db, 
-                              file_name, output_directory):
+                              test_q_name, test_db_name, output_directory):
         """
         Writes the test data for the case when the data selection mode is 
         "split". Basically, this prints only one query, but multiple databases 
@@ -115,16 +115,17 @@ class FileWriter():
             data_db: (numpy array) Numpy array containing the database data 
             num_q: (int) Number of query trajectories 
             nums_db: (list) List of number of database trajectories 
-            file_name: (string) Identifier to add to the file name 
+            test_q_name: (string) Identifier to add to the query files names 
+            test_db_name: (string) Identifier to add to the database file names
             output_directory: (string) The output directory for the data files 
         """
         # Write q to an .npy file
         # Gridded trajectories 
-        path_q = pathlib.Path(output_directory) / ("1"+file_name + "_q")
+        path_q = pathlib.Path(output_directory) / ("1_" + test_q_name)
         np.save(path_q, data_q)
         
         # Raw trajectories 
-        path_qraw = pathlib.Path(output_directory) / ("1"+file_name+"_q_raw")
+        path_qraw = pathlib.Path(output_directory) / ("1_raw_" + test_q_name)
         np.save(path_qraw, data_qraw)
         
         # Write all dbs to .npy files 
@@ -132,21 +133,21 @@ class FileWriter():
         dbraw_lens = []
         for i in range(len(nums_db)):
             # Gridded trajectories 
-            path_db = str(i+1) + file_name + "_db"
+            path_db = str(i+1) + "_" + test_db_name
             output_path_db = pathlib.Path(output_directory) / path_db
             data_qdb_db = np.concatenate((data_qdb, data_db[:nums_db[i]]))
             db_shapes.append(data_qdb_db.shape)
             np.save(output_path_db, data_qdb_db) 
             
             # Raw trajectories 
-            path_dbraw = str(i+1) + file_name + "_db_raw"
+            path_dbraw = str(i+1) + "_raw_" + test_db_name
             output_path_dbraw = pathlib.Path(output_directory) / path_dbraw
             data_qdb_db_raw = np.concatenate((data_qdbraw, 
                                               data_dbraw[:nums_db[i]]))
             dbraw_lens.append(data_qdb_db_raw.shape)
             np.save(output_path_dbraw, data_qdb_db_raw)
         
-        output_path = pathlib.Path(output_directory) / ("1" + file_name + "log")
+        output_path = pathlib.Path(output_directory) / ("1_test_log")
         with open(output_path.with_suffix(".txt"), 'w') as f:
             f.write("Dataset contents: 'data_gt', 'data_q', 'data_gt_raw " +
                      "data_q_raw")

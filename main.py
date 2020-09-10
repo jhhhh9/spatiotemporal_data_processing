@@ -132,10 +132,12 @@ def main():
         topk_log_name = arg_processor.topk_log_name
         cell_dict_name = arg_processor.cell_dict_name
         all_cells_name = arg_processor.all_cells_name
+        print("Writing top-k ID and top-k weights data") 
         writer.write_topk(topk_id, topk_weight, topk_id_name, topk_weight_name, 
                           topk_log_name, output_directory)
         
         # All cells data 
+        print("Writing spatiotemporal cell data to files") 
         writer.write_cell_dict(key_lookup_dict, cell_dict_name, output_directory)
         writer.write_cells(all_grids, all_cells_name, output_directory)
     
@@ -144,7 +146,7 @@ def main():
     # Test part 
     if arg_processor.process_test:
         # If the training part is not run, we do not have access to some 
-        # important variables. We have to read them from file 
+        # important variables. We have to read them from the .ini file 
         file_reader = FileReader()
         if not arg_processor.process_train_val:
             output_directory = arg_processor.output_directory
@@ -191,13 +193,14 @@ def main():
                                                         db_start_ID)
         
         # Write to the output files 
-        print("Writing to output files") 
+        print("Writing test data to output files") 
         writer = FileWriter()
         output_directory = arg_processor.output_directory
-        test_name = "_test"
+        test_q_name = arg_processor.test_q_name
+        test_db_name = arg_processor.test_db_name
         writer.write_test_data_split(q, qdb, db, qraw, qdbraw, dbraw, num_q, 
-                                     arg_processor.nums_db, test_name, 
-                                     output_directory)
+                                     arg_processor.nums_db, test_q_name, 
+                                     test_db_name, output_directory)
         
         # Finally, create a copy of the .ini file to the output directory
         writer.copy_ini_file(ini_path, output_directory)
