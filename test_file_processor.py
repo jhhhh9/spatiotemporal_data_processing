@@ -106,9 +106,9 @@ class TestFileProcessor():
                 # Grid the trajectory, and then alternatively taking points from
                 # the trajectory to form two sub-trajectories 
                 new_traj = self.__grid_trajectory(copy.deepcopy(new_traj))
+                new_traj = self.__remove_non_hot_cells(new_traj)
                 traj_1 = new_traj[0::2]
                 traj_2 = new_traj[1::2]
-                new_traj = self.__remove_non_hot_cells(new_traj)
                 
                 # BUG FIX: when a drop_rate is specified, too many trajectories 
                 # will be pruned such that the .csv file will not provide 
@@ -553,8 +553,6 @@ class TestFileProcessor():
         Returns:
             The trajectory with the ID replaced. 
         """
-        # Need to get which trajectory points are to be kept so that we can 
-        # remove non-hot cells for the raw trajectories too 
         new_trajectory = []
         for point in trajectory:
             if point[0] in self.key_lookup_dict:
