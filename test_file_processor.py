@@ -93,8 +93,12 @@ class TestFileProcessor():
                 assert False, "NOT IMPLEMENTED"
             
             if new_traj is not None:
+                
+                """
                 # Applying the drop rate, spatial distortion, and temporal 
                 # distortion. 
+                # This is the old method that downsamples first before 
+                # splitting. Also, the old downsampling method is used. 
                 if drop_rate > 0:   
                     new_traj = self.__downsample_trajectory(new_traj, 
                                                             [drop_rate])[0]
@@ -109,6 +113,31 @@ class TestFileProcessor():
                 new_traj = self.__remove_non_hot_cells(new_traj)
                 traj_1 = new_traj[0::2]
                 traj_2 = new_traj[1::2]
+                """
+                # Applying the drop rate, spatial distortion, and temporal 
+                # distortion. new method based on the ICDE 2018 work. 
+                traj_1 = new_traj[0::2]
+                traj_2 = new_traj[1::2]
+                if drop_rate > 0:   
+                    traj_1 = self.__downsample_trajectory_random(traj_1, 
+                                                                 [drop_rate])[0] 
+                    traj_2 = self.__downsample_trajectory_random(traj_2, 
+                                                                 [drop_rate])[0] 
+                                                                     
+                if spatial_distortion > 0 or temporal_distortion > 0:
+                    traj_1 = self.__distort_spatiotemporal_traj(traj_1,
+                                                           spatial_distortion,
+                                                           temporal_distortion)
+                    traj_2 = self.__distort_spatiotemporal_traj(traj_2,
+                                                           spatial_distortion,
+                                                           temporal_distortion)
+                                                           
+                # Grid the trajectory, and then alternatively taking points from
+                # the trajectory to form two sub-trajectories 
+                traj_1 = self.__grid_trajectory(copy.deepcopy(traj_1))
+                traj_1 = self.__remove_non_hot_cells(traj_1)
+                traj_2 = self.__grid_trajectory(copy.deepcopy(traj_2))
+                traj_2 = self.__remove_non_hot_cells(traj_2)
                 
                 # BUG FIX: when a drop_rate is specified, too many trajectories 
                 # will be pruned such that the .csv file will not provide 
@@ -314,6 +343,33 @@ class TestFileProcessor():
         return [[lat_cur, lng_cur, time_cur], cell_ID]
 
 
+    def __downsample_trajectory_random(self, trajectory, point_drop_rates):
+        """
+        Downsamples a trajectory once for each point_drop_rate and return the 
+        result. The downsampling must keep the first and last point in the 
+        trajectory 
+        
+        This method performs a more random downsampling by assining each 
+        point (except the first and last) a percentage chance to be removed, 
+        as opposed to __downsample trajectory that uses the drop_rate to 
+        find out the exact number of points to be removed. 
+        
+        Args:
+            trajectory (list of lists): The trajectory to be downsampled 
+            point_drop_rates (list of floats): The drop rates
+            
+        Returns:
+            A list of trajectories where each item in the list represents one 
+            downsampling of the input trajectories 
+        """
+        downsampled_trajs = []
+        for point_drop_rate in point_drop_rates:
+            traj_mid = [x for x in trajectory[1:-1] \
+                        if random.random() > point_drop_rate]
+            downsampled_trajs.append([trajectory[0]] + traj_mid + 
+                                     [trajectory[-1]])
+        return downsampled_trajs
+
     def __downsample_trajectory(self, trajectory, point_drop_rates):
         """
         Downsamples a trajectory once for each point_drop_rate and return the 
@@ -333,7 +389,7 @@ class TestFileProcessor():
         # from the intended number. 
         nums_point = [round((1-dr) * len(trajectory)) - 2 \
                       for dr in point_drop_rates]
-        
+                      
         # Do the downsampling by randomly picking points that we want to keep 
         downsampled_trajs = []
         for num_point in nums_point:

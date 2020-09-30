@@ -69,8 +69,8 @@ class TrajProcessor():
                    
             # Generate the downsampled trajectories
             all_cur_traj_q = []
-            cur_traj_q = self.__downsample_trajectory(all_traj[i],
-                                                      point_drop_rates)
+            cur_traj_q = self.__downsample_trajectory_random(all_traj[i],
+                                                             point_drop_rates)
             
             # Distort the downsampled trajectories 
             for traj_q in cur_traj_q:
@@ -591,6 +591,34 @@ class TrajProcessor():
                 downsampled_trajs.append(downsampled_traj)
         return downsampled_trajs
         
+
+    def __downsample_trajectory_random(self, trajectory, point_drop_rates):
+        """
+        Downsamples a trajectory once for each point_drop_rate and return the 
+        result. The downsampling must keep the first and last point in the 
+        trajectory 
+        
+        This method performs a more random downsampling by assining each 
+        point (except the first and last) a percentage chance to be removed, 
+        as opposed to __downsample trajectory that uses the drop_rate to 
+        find out the exact number of points to be removed. 
+        
+        Args:
+            trajectory (list of lists): The trajectory to be downsampled 
+            point_drop_rates (list of floats): The drop rates
+            
+        Returns:
+            A list of trajectories where each item in the list represents one 
+            downsampling of the input trajectories 
+        """
+        downsampled_trajs = []
+        for point_drop_rate in point_drop_rates:
+            traj_mid = [x for x in trajectory[1:-1] \
+                        if random.random() > point_drop_rate]
+            downsampled_trajs.append([trajectory[0]] + traj_mid + 
+                                     [trajectory[-1]])
+        return downsampled_trajs
+
 
     def __create_pattern_ranges(self, span, stride):
         """

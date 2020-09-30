@@ -198,9 +198,10 @@ def main():
         output_directory = arg_processor.output_directory
         test_q_name = arg_processor.test_q_name
         test_db_name = arg_processor.test_db_name
+        lines_read = test_processor.num_line
         writer.write_test_data_split(q, qdb, db, qraw, qdbraw, dbraw, num_q, 
                                      arg_processor.nums_db, test_q_name, 
-                                     test_db_name, output_directory)
+                                     test_db_name, output_directory, lines_read)
         
         # Finally, create a copy of the .ini file to the output directory
         writer.copy_ini_file(ini_path, output_directory)

@@ -102,7 +102,8 @@ class FileWriter():
             
     def write_test_data_split(self, data_q, data_qdb, data_db, data_qraw, 
                               data_qdbraw, data_dbraw, num_q, nums_db, 
-                              test_q_name, test_db_name, output_directory):
+                              test_q_name, test_db_name, output_directory,
+                              lines_read):
         """
         Writes the test data for the case when the data selection mode is 
         "split". Basically, this prints only one query, but multiple databases 
@@ -118,6 +119,9 @@ class FileWriter():
             test_q_name: (string) Identifier to add to the query files names 
             test_db_name: (string) Identifier to add to the database file names
             output_directory: (string) The output directory for the data files 
+            lines_read: (int) The number of lines read to produce the test 
+                         data (includes the skipped lines from the trianing 
+                         data) 
         """
         # Write q to an .npy file
         # Gridded trajectories 
@@ -155,6 +159,7 @@ class FileWriter():
             f.write("\ndata_db shape: " + str([x for x in db_shapes]))
             f.write("\ndata_qraw len: " + str(data_qraw.shape))
             f.write("\ndata_dbraw len:" + str([x for x in dbraw_lens]))
+            f.write("\nlines read:" + str(lines_read))
   
   
     def write_topk(self, topk_id, topk_weight, file_name_id, file_name_weight,
