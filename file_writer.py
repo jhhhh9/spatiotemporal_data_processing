@@ -11,7 +11,7 @@ class FileWriter():
     """
     This class handles the printing of data to files. 
     """
-    def write_train_data(self, data_x, data_y, file_name_x, file_name_y, 
+    def write_train_data(self, data, file_name_x, file_name_y, 
                          file_name_log, output_directory, train_segment_size,
                          num_lines):
         """
@@ -34,6 +34,15 @@ class FileWriter():
             num_lines: (int) The actual number of lines read from the input 
                         data file. Required for processing the test data 
         """
+        # data_x and data_y are generators, but we need them in numpy arrays 
+        data_x = []
+        data_y = []
+        for x in data:
+            data_x.append(x[0])
+            data_y.append(x[1])
+        data_x = np.array(data_x)
+        data_y = np.array(data_y)
+        
         # Writes to .npy files
         # If train_segment_size is <= 0, print to one file 
         if train_segment_size <= 0:

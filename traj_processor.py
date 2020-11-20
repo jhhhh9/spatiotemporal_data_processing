@@ -141,7 +141,7 @@ class TrajProcessor():
                     if len(q_) >= min_q_length: 
                         new_q.append(q_)
                 if len(new_q) > 0:
-                    new_all_traj_pairs.append([[new_gt, np.array(gt[1])], new_q])
+                    yield [[new_gt, np.array(gt[1])], new_q]
         """
         new_all_traj_pairs = []
         for i in range(len(all_traj_pairs)):
@@ -239,13 +239,11 @@ class TrajProcessor():
         flattened_pairs = []
         id = 0 
         for one_pair in all_traj_pairs:
-            print("Flattening trajectory pairs: %d out of %d" % \
-                  (id, len(all_traj_pairs)))
+            print("Flattening trajectory pairs: %d" % (id))
             [[gt, gt_patt], q] = copy.deepcopy(one_pair)
             for one_q in q:
-                flattened_pairs.append([id, [gt, gt_patt, one_q]])
+                yield [id, [gt, gt_patt, one_q]]
             id += 1
-        return flattened_pairs
         
         
     def process_training_data(self, all_pairs):
@@ -280,8 +278,7 @@ class TrajProcessor():
         num_traj = 0 
         for one_pair in all_pairs:
             num_traj += 1
-            print("Processing train/val data: %d out of %d" %\
-                  (num_traj, len(all_pairs)))
+            print("Processing train/val data: %d" % (num_traj))
             [_, [gt, gt_patt, q]] = one_pair 
             gt = self.__keep_id_only(gt)
             gt_patt_s = np.array([np.array(x[[0]]) for x in gt_patt])
@@ -293,7 +290,7 @@ class TrajProcessor():
             one_y = np.array([gt, gt_patt_s, gt_patt_t])
             all_x.append(one_x)
             all_y.append(one_y)
-        return [np.array(all_x), np.array(all_y)]
+        yield [np.array(all_x), np.array(all_y)]
         
 
     def __remove_non_hot_cells(self, trajectory, key_lookup_dict):

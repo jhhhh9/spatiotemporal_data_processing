@@ -47,7 +47,7 @@ def main():
                                                          min_trajectory_length, 
                                                          max_trajectory_length,
                                                          bounding_box_coords,
-                                                         traj_nums)         
+                                                         traj_nums)
         
         # First loop through the raw trajectories 
         print("Processing raw trajectories.")
@@ -118,10 +118,10 @@ def main():
         val_y_name = arg_processor.val_y_name
         val_log_name = arg_processor.val_log_name
         val_segment_size = arg_processor.val_segment_size
-        writer.write_train_data(train_data[0], train_data[1], train_x_name, 
+        writer.write_train_data(train_data, train_x_name, 
                                 train_y_name, train_log_name, output_directory, 
                                 train_segment_size, arg_processor.num_train)
-        writer.write_train_data(val_data[0], val_data[1], val_x_name, 
+        writer.write_train_data(val_data, val_x_name, 
                                 val_y_name, val_log_name, output_directory, 
                                 val_segment_size, arg_processor.num_val)
                                 
