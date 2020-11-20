@@ -123,6 +123,26 @@ class TrajProcessor():
         Returns:
             All the trajectory pairs after being processed.
         """
+        i = 0
+        new_all_traj_pairs = []
+        while len(all_traj_pairs) > 0:
+            i += 1
+            print("Processing trajectory (2nd loop) " + str(i) + " out of " +
+                   str(len(all_traj_pairs)))
+            [gt, all_q] = all_traj_pairs.pop()
+            new_gt = self.__remove_non_hot_cells(gt[0], key_lookup_dict)
+            
+            # Only process the query trajectories if the ground truth is not 
+            # too short. 
+            if len(new_gt) >= min_gt_length:
+                new_q = []
+                for q in all_q:
+                    q_ = self.__remove_non_hot_cells(q, key_lookup_dict)
+                    if len(q_) >= min_q_length: 
+                        new_q.append(q_)
+                if len(new_q) > 0:
+                    new_all_traj_pairs.append([[new_gt, np.array(gt[1])], new_q])
+        """
         new_all_traj_pairs = []
         for i in range(len(all_traj_pairs)):
             print("Processing trajectory (2nd loop) " + str(i+1) + " out of " +
@@ -141,6 +161,7 @@ class TrajProcessor():
                 if len(new_q) > 0:
                     new_all_traj_pairs.append([[new_gt, np.array(gt[1])], new_q])
         return new_all_traj_pairs
+        """
 
 
     def split_and_process_dataset(self, all_traj_pairs, num_data):

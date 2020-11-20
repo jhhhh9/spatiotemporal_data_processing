@@ -41,13 +41,13 @@ class ArgProcessor():
         self.dataset_mode = config['GENERAL']['DatasetMode'].lower() 
         # Check validity 
         # Check if the input_file is a valid file 
-        if not os.path.isfile(self.input_file_path):
-            raise IOError("'" + self.input_file_path + "' is not a valid file")
+        if (not os.path.isfile(self.input_file_path)):
+            raise IOError("'" + self.input_file_path + "' must be a file.'")
         # If the output_directory does not exist, create it 
         if not os.path.exists(self.output_directory):
             os.mkdir(self.output_directory)
         # Check data mode validity 
-        self.dataset_modes = ['porto']
+        self.dataset_modes = ['porto', 'didi']
         if self.dataset_mode not in self.dataset_modes:
             raise ValueError("'" + self.dataset_mode + "' is not one of the " + 
                              "valid dataset modes.")

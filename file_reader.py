@@ -1,9 +1,12 @@
 """Reads the trajectories from the input trajectory file"""
 from datetime import datetime
+from os import listdir
+from os.path import isfile, join
 from shapely.geometry import Point
 from shapely.geometry import Polygon 
 import ast 
 import numpy as np 
+
 import pathlib 
 
 class FileReader():
@@ -18,9 +21,12 @@ class FileReader():
         self.__SECONDS_IN_DAY = 86400
         self.__PORTO_SECOND_INCREMENT = 15 
         self.__SECONDS_IN_MINUTE = 60 
+        self.__DEFAULT_TRAIN_SIZE_FRACTION = 0.7
+        self.__DEFAULT_VALIDATION_SIZE_FRACTION = 0.2
+        self.__DEFAULT_TEST_SIZE_FRACTION = 0.1
         
             
-    def read_trajectory_from_file(self, input_file_path, dataset_mode, 
+    def read_trajectory_from_file(self, in_path, dataset_mode, 
                                   min_trajectory_length, max_trajectory_length,
                                   bbox_coords, traj_nums): 
         """
@@ -30,7 +36,7 @@ class FileReader():
         the data is read depends on the data_mode 
         
         Args:
-            input_file_path: (String) The path to the input file 
+            in_path: (String) The path to the input  
             data_mode: (String) The mode used to read the data. Different 
                        dataset require different ways of reading and 
                        consequently, different data_mode 
@@ -41,9 +47,12 @@ class FileReader():
             bbox_coords: (list of floats) Min lat, min lng, max lat and max lng
                          that represents the valid area. Points outside this 
                          area are to be removed 
-            traj_nums: (list of integers) A list containing the number of 
-                        lines in the .csv trajectory to be assigned to the 
-                        training, and validation data accordingly 
+            traj_nums: (list of integers) For the Porto data, this is a list 
+                        containing the number of lines in the .csv trajectory 
+                        to be assigned to the training, and validation data 
+                        accordingly. For the Didi data, this is a list 
+                        containing the number of trajectories to be assigned 
+                        to the training and validation. 
             
         Returns:    
             A list of trajectories. Each trajectory is a list consisting of 
@@ -53,12 +62,15 @@ class FileReader():
         self.bbox = Polygon([(min_lat, min_lng), (max_lat, min_lng), 
                              (max_lat, max_lng), (min_lat, max_lng),
                              (min_lat, min_lng)])
-        in_file = open(input_file_path, 'r')
         
         # Read the .csv file line-by-line and process it according to the 
         # data_mode 
+        in_file = open(in_path, 'r')
         if dataset_mode == 'porto':
             return(self.__read_porto(in_file, min_trajectory_length, 
+                                     max_trajectory_length, traj_nums))
+        elif dataset_mode == 'didi':
+            return(self.__read_didi(in_file, min_trajectory_length, 
                                      max_trajectory_length, traj_nums))
         else:
             raise ValueError("'" + dataset_mode + "' not supported.")
@@ -104,11 +116,10 @@ class FileReader():
         # Throws away the .csv header and then read line-by-line 
         in_file.readline()
         
-        # Get the lines into the training, validation, and test arrays 
+        # Get the lines into the training, and validation lists
         [num_train, num_validation] = traj_nums
         all_train = []
         all_validation = []
-        all_test = []
         
         # Need to keep track of the actual number of lines read 
         num_lines = 0
@@ -146,6 +157,84 @@ class FileReader():
         return [all_train, all_validation]
         
 
+    def __read_didi(self, in_file, min_trajectory_length, 
+                     max_trajectory_length, traj_nums):
+        """
+        Reads the didi trajectory file line-by-line. Also keep track of the 
+        actual number of lines read 
+        
+        Args:
+            in_file: (file) The input didi trajectory file 
+            min_trajectory_length: (Integer) The shortest allowable trajectory 
+                                   length 
+            max_trajectory_length: (Integer) The longest allowable trajectory 
+                                   length 
+            traj_nums: (list of integers) A list containing the number of 
+                        trajectories for each training and validation data
+        Returns:    
+            A list of trajectories, and the actual number of lines read. Each 
+            trajectory is a list consisting of latitude, longitude and timestamp 
+            in the form of minutes-in-day
+        """
+        # Throws away the .csv header and then read line-by-line 
+        in_file.readline()
+        
+        # Get the lines into the training and validation lists
+        [num_train, num_validation] = traj_nums
+        all_train = []
+        all_validation = []
+        
+        # Need to keep track of the actual number of lines read 
+        num_lines = 0
+        
+        for line in in_file:
+            num_lines += 1
+            trajectory = ast.literal_eval(line.split('","')[-1].replace('"',''))
+            
+            # Only process the trajectory further if it's not too long or too 
+            # short 
+            if (len(trajectory) <= max_trajectory_length and 
+                len(trajectory) >= min_trajectory_length):
+                
+                # Process the trajectory by checking coordinates 
+                new_traj = self.__check_point(trajectory)
+                
+                # The new trajectory may be shorter because points outside of 
+                # the area are removed. If it is now shorter, we ignore it 
+                if (len(new_traj) >= min_trajectory_length):
+                    # Add to either the training, or validation list 
+                    if num_lines <= num_train:
+                        all_train.append(new_traj)
+                        print("READING TRAINING DATA %d" % (num_lines))
+                    elif num_lines < num_validation + num_train:
+                        all_validation.append(new_traj)
+                        print("READING VALIDATION DATA %d" % (num_lines))
+                    else:
+                        break 
+        return [all_train, all_validation]
+        
+
+    def __check_point(self, trajectory):
+        """
+        Given a trajectory consisting of latitude, longitude and timestamp, 
+        check if each point is inside the valid area. If it is not, remove it.
+        
+        Args:
+            trajectory: (list) List of list of longitude, latitude and timestamp
+                          
+        Returns:
+            A list of list of latitude, longitude and timestamp in the form 
+            of minutes-in-day
+        """
+        new_trajectory = []
+        for point in trajectory: 
+            shapely_point = Point(point[0], point[1])
+            if self.bbox.contains(shapely_point):
+                new_trajectory.append([point[0], point[1], point[2]])
+        return new_trajectory
+            
+        
+        
     def __check_point_and_add_timestamp(self, trajectory, start_second):
         """
         Given a trajectory consisting of latitude and longitude points, check if 

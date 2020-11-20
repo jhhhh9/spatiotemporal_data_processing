@@ -163,6 +163,7 @@ def main():
         # Initializes the file reader 
         input_file_path = arg_processor.input_file_path
         bbox_coords = arg_processor.bounding_box_coords
+        dataset_mode = arg_processor.dataset_mode
         test_processor = TestFileProcessor(input_file_path, line_start, 
                                            bbox_coords, all_grids, 
                                            key_lookup_dict)

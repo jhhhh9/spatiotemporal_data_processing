@@ -64,7 +64,7 @@ class TestFileProcessor():
             max_traj_len: (integer) The maximum trajectory length. Any 
                            trajectory longer than this will be removed. 
             drop_rate: (float) The drop rate for the trajectories 
-            spatial_distortion: (integer) The maximum spatial distortion 
+            spatial_distortion: (float) The spatial distortion rate
             temporal_distortion: (integer) The maximum temporal distortion 
             start_ID: (integer) Where the trajectory ID should start from 
             
@@ -89,6 +89,11 @@ class TestFileProcessor():
                 # double min_traj_len here 
                 new_traj = self.__process_csv_porto(line, min_traj_len * 2, 
                                                     max_traj_len)
+            elif dataset_mode.lower() == 'didi':
+                # Due to the trajectories being split to two later, we need to 
+                # double min_traj_len here 
+                new_traj = self.__process_csv_didi(line, min_traj_len * 2, 
+                                                   max_traj_len)
             else:
                 assert False, "NOT IMPLEMENTED"
             
@@ -123,7 +128,6 @@ class TestFileProcessor():
                                                                  [drop_rate])[0] 
                     traj_2 = self.__downsample_trajectory_random(traj_2, 
                                                                  [drop_rate])[0] 
-                                                                     
                 if spatial_distortion > 0 or temporal_distortion > 0:
                     traj_1 = self.__distort_spatiotemporal_traj(traj_1,
                                                            spatial_distortion,
@@ -207,6 +211,36 @@ class TestFileProcessor():
         return None 
         
 
+    def __process_csv_didi(self, line, min_trajectory_length,
+                           max_trajectory_length):
+        """
+        Reads the didi trajectory file line-by-line. Also keep track of the 
+        actual number of lines read 
+        
+        Args:
+            line: (string) The line from the .csv file to process 
+            min_trajectory_length: (Integer) The shortest allowable trajectory 
+                                   length 
+            max_trajectory_length: (Integer) The longest allowable trajectory 
+                                   length 
+        Returns:    
+            Trajectory read from the provided line 
+        """
+        trajectory = ast.literal_eval(line.split('","')[-1].replace('"',''))
+        # Only process the trajectory further if it's not too long or too 
+        # short 
+        if (len(trajectory) <= max_trajectory_length and 
+            len(trajectory) >= min_trajectory_length):
+            # Process the trajectory by checking coordinates and adding 
+            # timestamp 
+            new_traj = self.__check_point(trajectory)
+            if len(new_traj) >= min_trajectory_length:
+                return new_traj 
+        # If the code reaches this point, then new_traj is not of the right 
+        # length. We return None 
+        return None 
+
+
     def __check_point_and_add_timestamp_porto(self, trajectory, start_second):
         """
         Given a trajectory consisting of latitude and longitude points, check if 
@@ -243,6 +277,27 @@ class TestFileProcessor():
                 
             # Add 15 seconds for the next trajectory point 
             cur_second += self.__PORTO_SECOND_INCREMENT
+        return new_trajectory
+
+
+    def __check_point(self, trajectory):
+        """
+        Given a trajectory consisting of latitude and longitude points, check if 
+        each point is inside the valid area. If it is not, remove it.
+        
+        Args:
+            trajectory: (list) List of list of longitude, latitude and timestamp 
+                         triplets 
+                          
+        Returns:
+            A list of list of latitude, longitude and timestamp in the form 
+            of minutes-in-day
+        """
+        new_trajectory = []
+        for point in trajectory:
+            shapely_point = Point(point[0], point[1])
+            if self.bbox.contains(shapely_point):
+                new_trajectory.append([point[0], point[1], point[2]])
         return new_trajectory
 
 
