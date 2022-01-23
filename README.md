@@ -2,6 +2,7 @@
 
 Call the script by providing an .ini file containing the arguments listed below (case sensitive):
 
+```
 [MODE]
 ProcessTrainVal         = <Boolean. Whether or not to process the training and validation data> 
 ProcessTest             = <Boolean. Whether or not to process the test data>
@@ -56,3 +57,4 @@ TestTemporalDistortion  = <Integer. Temporal distortion rate>
 [PATTERN]
 Span                    = <Integer. Length of a temporal pattern span in minutes>
 Stride                  = <Integer. Length of a temporal pattern stride in minutes>
+```
