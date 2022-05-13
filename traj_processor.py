@@ -56,42 +56,54 @@ class TrajProcessor():
             one ground truth depending on the number of drop_rates provided.
             The 
         """
+        # 确定研究范围
         [min_lat, min_lng, max_lat, max_lng] = bbox_coords
         bbox = Polygon([(min_lat, min_lng), (max_lat, min_lng), 
                         (max_lat, max_lng), (min_lat, max_lng),
                         (min_lat, min_lng)])
         
-        # Iterate through all trajectories 
+        # Iterate through all trajectories
+        # 遍历所有的轨迹序列
         all_pairs = []
         for i in range(len(all_traj)):
             print("Processing trajectory (1st loop) " + str(i+1) + " out of " +
                    str(len(all_traj)))
                    
             # Generate the downsampled trajectories
+            # 产生下采样轨迹序列
             all_cur_traj_q = []
+            # 每条按照[0, 0.2, 0.4, 0.6]的概率删去中间节点，获得最终轨迹
             cur_traj_q = self.__downsample_trajectory_random(all_traj[i],
                                                              point_drop_rates)
             
-            # Distort the downsampled trajectories 
+            # Distort the downsampled trajectories
+            # 失真
             for traj_q in cur_traj_q:
                 for s in spatial_distortions:
                     for t in temporal_distortions:
+                        # 对该条数据按照当前失真率处理
                         traj_q_new = self.__distort_spatiotemporal_traj(traj_q,
                                                                         s, t, 
                                                                         bbox)
-                        # Also grid the trajectories 
+                        # Also grid the trajectories
+                        # 给变化后的轨迹分配cell
                         traj_q_new = self.__grid_trajectory(traj_q_new, 
                                                             all_cells)
                         all_cur_traj_q.append(traj_q_new) 
                 
-            # Grid the ground truth trajectory 
+            # Grid the ground truth trajectory
+            # 给原始轨迹分配cell
             gt_traj_grid = self.__grid_trajectory(all_traj[i], all_cells)
             
-            # Get the pattern features for the ground truth 
+            # Get the pattern features for the ground truth
+            # 针对原始轨迹获取模式特征
+            # 时间上先获取所有区间
             all_ranges = self.__create_pattern_ranges(span, stride)
+            # todo
             gt_patt_features = self.__get_pattern_features(gt_traj_grid, 
                                                            all_ranges)
-            gt_data = [gt_traj_grid, gt_patt_features]  
+            gt_data = [gt_traj_grid, gt_patt_features]
+            # 原始轨迹、 真实轨迹的特征、下采样轨迹
             all_pairs.append([gt_data, all_cur_traj_q])
         return all_pairs 
 
@@ -130,6 +142,7 @@ class TrajProcessor():
             print("Processing trajectory (2nd loop) " + str(i) + " out of " +
                    str(len(all_traj_pairs)))
             [gt, all_q] = all_traj_pairs.pop()
+            # 在gt中移除不是热点数据ID的，所以取[0]
             new_gt = self.__remove_non_hot_cells(gt[0], key_lookup_dict)
             
             # Only process the query trajectories if the ground truth is not 
@@ -137,10 +150,12 @@ class TrajProcessor():
             if len(new_gt) >= min_gt_length:
                 new_q = []
                 for q in all_q:
+                    # 下采样的轨迹同样操作
                     q_ = self.__remove_non_hot_cells(q, key_lookup_dict)
                     if len(q_) >= min_q_length: 
                         new_q.append(q_)
                 if len(new_q) > 0:
+                    # 轨迹特征模式还是不变，与热点无关
                     yield [[new_gt, np.array(gt[1])], new_q]
         """
         new_all_traj_pairs = []
@@ -279,10 +294,12 @@ class TrajProcessor():
         for one_pair in all_pairs:
             num_traj += 1
             print("Processing train/val data: %d" % (num_traj))
-            [_, [gt, gt_patt, q]] = one_pair 
+            [_, [gt, gt_patt, q]] = one_pair
+            # 提取原始数据序列的id
             gt = self.__keep_id_only(gt)
             gt_patt_s = np.array([np.array(x[[0]]) for x in gt_patt])
             gt_patt_t = np.array([np.array(x[[1]]) for x in gt_patt])
+            # 提取下采样后的数据序列的id
             q = self.__keep_id_only(q)
             
             # Form the X and then y and then append  
@@ -350,6 +367,8 @@ class TrajProcessor():
         """
         traj_data = []
         for traj_point in trajectory:
+            # todo
+            # grid_data:[x,y,z] cell_id:x_y_z
             [grid_data, cell_id] = self.__grid_traj_point(traj_point, all_cells)
             traj_point_ = copy.deepcopy(traj_point)
             new_traj_point = [cell_id, traj_point_, grid_data]
@@ -484,7 +503,8 @@ class TrajProcessor():
         
         # The case of day wraparound (i.e. the timestamp going from the end of 
         # one day to the start of next) is going to cause problems. So, we 
-        # deal with it differently 
+        # deal with it differently
+        # 找首尾所在的区间
         # The normal case:
         if start_time_id <= end_time_id:
             # Do a binary search to find the range in all_ranges_ where the 
@@ -496,9 +516,10 @@ class TrajProcessor():
             # all_ranges_ in two and swaps the two sections such that the 
             # start_index is contained in the first range of this reordered list
             start_index = __binary_search(all_ranges_, start_time_id)
+            # 尾在前面移到后面
             all_ranges_ = all_ranges_[start_index:] + all_ranges_[:start_index]
             start_index = 0
-            
+            #移过后无序了，一个个找
             # Since all_ranges_ are now unordered, we cannot use binary search 
             # to find end_index. So we just find them manually 
             for i in range(len(all_ranges_)):
@@ -508,11 +529,13 @@ class TrajProcessor():
                     break 
         assert start_index <= end_index, "ERROR! start index is larger than end"
 
-        # Only get the relevant ranges 
+        # Only get the relevant ranges
+        # 活动区间获取
         relevant_ranges = []
         for i in range(start_index, end_index + 1):
             relevant_ranges.append(all_ranges_[i])
-        
+
+        # 把轨迹上的点分配到各自所在的区间
         # We have the relevant ranges, now to assign trajectory points to them
         # Only collect the raw trajectories 
         all_patterns = [[] for x in relevant_ranges]
@@ -524,14 +547,17 @@ class TrajProcessor():
         # Patterns assigned, now to find the features 
         all_pattern_features = []
         for i in range(len(all_patterns)):
+            # 当区间中数量小于等于1不管
             if len(all_patterns[i]) <= 1:
                 all_pattern_features.append([0,0])
             else:
-                # Get the cyclical features 
+                # Get the cyclical features
+                # 由于时间有周期性，针对该区间的每个点，转一下时间信息变为带有周期性的信息
                 [x.append(self.__get_time_cyclical(x[2])) 
                  for x in all_patterns[i]]
                 s_dist = 0 
-                t_dist = 0 
+                t_dist = 0
+                # 求特征算法 todo：对照论文
                 for j in range(1, len(all_patterns[i])):
                     cur_s = np.array(all_patterns[i][j][:2])
                     cur_t = np.array(all_patterns[i][j][-1])
@@ -630,6 +656,7 @@ class TrajProcessor():
             downsampling of the input trajectories 
         """
         downsampled_trajs = []
+        # 根据不同的概率删去中间结点，不包含首尾
         for point_drop_rate in point_drop_rates:
             traj_mid = [x for x in trajectory[1:-1] \
                         if random.random() > point_drop_rate]
@@ -672,10 +699,12 @@ class TrajProcessor():
             bbox: (shapely Polygon) A polygon that represents the valid area
         """
         traj_ = copy.deepcopy(traj) 
-        # If s_dist_rate is 0, skip the spatial distortion 
+        # If s_dist_rate is 0, skip the spatial distortion
+        # 如果空间不失真，那么时间也不改变
         if s_dist_rate != 0:
             for traj_point in traj_:
                 if random.random() < s_dist_rate:
+                    # todo：按照一定概率进行空间失真，失真后如果在范围内，那么改变，不在的话就还是用原来的
                     self.__distort_spatial_fix(traj_point, bbox)
         if t_dist != 0:
             self.__distort_temporal_traj(traj_, t_dist)
@@ -798,7 +827,8 @@ class TrajProcessor():
                                       positive or negative, this acts as both 
                                       upper and lower limit. 
         """
-        # Get the amount of distortions 
+        # Get the amount of distortions
+        # 获取时间偏移量
         t_distort = random.randint(-max_temporal_distortion, 
                                    max_temporal_distortion)
                                    
@@ -809,6 +839,8 @@ class TrajProcessor():
             
             # Distortions can cause the trajectory to go over the max. number 
             # of minutes in a day, or go to the negatives. We address both.
+            # 当超出时间范围，回到初始
+            # 当小于最小，从末尾回退
             if traj_point[2] >= self.__MINUTES_IN_DAY:
                 traj_point[2] -= self.__MINUTES_IN_DAY
             if traj_point[2] < 0:

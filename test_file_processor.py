@@ -33,6 +33,7 @@ class TestFileProcessor():
         for self.num_line, line in enumerate(self.file):
             if self.num_line == line_start:
                 break 
+        self.file = open(input_file_path)
         [self.min_lat, self.min_lng, self.max_lat, self.max_lng] = bbox_coords 
         self.bbox = Polygon([(self.min_lat, self.min_lng), 
                              (self.max_lat, self.min_lng), 
@@ -77,7 +78,7 @@ class TestFileProcessor():
         list_traj_2 = []
         list_traj_1_raw = []
         list_traj_2_raw = []
-        
+        self.file.readline()
         # Continue reading the file--processing and adding trajectories to 
         # list_traj_1 and 2--until both lists are of sufficient length. 
         while len(list_traj_1) < num_data:

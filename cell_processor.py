@@ -89,6 +89,8 @@ class CellProcessor():
             # centroid, that centroid itself is going to pop up as the closest  
             # centroid with a distance of 0. So we actually query top-k+1 
             # and remove the first element
+            # centroid是三维的，距离计算依然是三维点欧氏距离计算
+            # 每个点的坐标是根据这个立方体中心的相对位置得到
             [topk_dist, topk_id] = kdtree.query(centroid, k+1)
             all_topk_id.append(topk_id[1:])
             all_topk_dist.append(topk_dist[1:])

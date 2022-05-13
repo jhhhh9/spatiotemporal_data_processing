@@ -42,6 +42,9 @@ class FileWriter():
             data_y.append(x[1])
         data_x = np.array(data_x)
         data_y = np.array(data_y)
+
+        data_x = data_x[0]
+        data_y = data_y[0]
         
         # Writes to .npy files
         # If train_segment_size is <= 0, print to one file 

@@ -59,6 +59,7 @@ class FileReader():
             latitude, longitude and timestamp in the form of minutes-in-day
         """
         [min_lat, min_lng, max_lat, max_lng] = bbox_coords
+        # bbox形成了一个环
         self.bbox = Polygon([(min_lat, min_lng), (max_lat, min_lng), 
                              (max_lat, max_lng), (min_lat, max_lng),
                              (min_lat, min_lng)])
@@ -69,7 +70,7 @@ class FileReader():
         if dataset_mode == 'porto':
             return(self.__read_porto(in_file, min_trajectory_length, 
                                      max_trajectory_length, traj_nums))
-        elif dataset_mode == 'didi':
+        elif dataset_mode == 'didi': # 目前的 读取滴滴数据
             return(self.__read_didi(in_file, min_trajectory_length, 
                                      max_trajectory_length, traj_nums))
         else:
@@ -180,6 +181,7 @@ class FileReader():
         in_file.readline()
         
         # Get the lines into the training and validation lists
+        # 训练集和验证集数量
         [num_train, num_validation] = traj_nums
         all_train = []
         all_validation = []
@@ -188,21 +190,33 @@ class FileReader():
         num_lines = 0
         
         for line in in_file:
+            # 读取每行
             num_lines += 1
+            # 数据转换
+            # line：一行所有数据
+            # "39a096b71376b82f35732eff6d95779b","A","2002","","0","0","A","False",
+            # "[[30.72702, 104.07513, 839], [30.7263, 104.07497, 839], [30.72544, 104.07496, 839],
+            # [30.72456, 104.07476, 839], [30.72406, 104.07434, 839], [30.72351, 104.07424, 839],
+            # ..."
+            # 去除最后一列的数据：-1，即轨迹序列
             trajectory = ast.literal_eval(line.split('","')[-1].replace('"',''))
             
             # Only process the trajectory further if it's not too long or too 
-            # short 
+            # short
+            # 排除不满足条件的轨迹序列
             if (len(trajectory) <= max_trajectory_length and 
                 len(trajectory) >= min_trajectory_length):
                 
-                # Process the trajectory by checking coordinates 
+                # Process the trajectory by checking coordinates
+                # 删除不在研究范围的点
                 new_traj = self.__check_point(trajectory)
                 
                 # The new trajectory may be shorter because points outside of 
-                # the area are removed. If it is now shorter, we ignore it 
+                # the area are removed. If it is now shorter, we ignore it
+                # 再次判断长度
                 if (len(new_traj) >= min_trajectory_length):
-                    # Add to either the training, or validation list 
+                    # Add to either the training, or validation list
+                    # 分为训练集和验证集，多余的不要
                     if num_lines <= num_train:
                         all_train.append(new_traj)
                         print("READING TRAINING DATA %d" % (num_lines))
@@ -213,7 +227,11 @@ class FileReader():
                         break 
         return [all_train, all_validation]
         
-
+    """
+    对轨迹序列进行处理转换
+    Point是shapely.XX包中的对象类
+    self.bbox也是，可以判断该point是否在研究范围，否则删除
+    """
     def __check_point(self, trajectory):
         """
         Given a trajectory consisting of latitude, longitude and timestamp, 

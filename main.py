@@ -16,22 +16,24 @@ from traj_processor import TrajProcessor
 def main():
     # Read the ini file path argument 
     parser = ArgumentParser(description='inputs')
-    parser.add_argument('--config', dest = 'config',
+    parser.add_argument('--config', dest = 'config', default='arg.ini',
                         help='The path to the .ini config file. FORMAT: ' + 
                              'a string.')
     ini_path = parser.parse_args().config
     arg_processor = ArgProcessor(ini_path)
     
-    # Training+validation part 
+    # Training+validation part
+    # todo:  test报错了，先false
     if arg_processor.process_train_val:
         # Generate the spatiotemporal cells 
         print("Generating spatiotemporal cells")
-        bounding_box_coords = arg_processor.bounding_box_coords 
+        bounding_box_coords = arg_processor.bounding_box_coords  # 研究范围
         spatial_grid_lat = arg_processor.spatial_grid_lat
         spatial_grid_lng = arg_processor.spatial_grid_lng
         temporal_grid_length = arg_processor.temporal_grid_length
         cell_generator = CellGenerator(bounding_box_coords, spatial_grid_lat,
                                        spatial_grid_lng, temporal_grid_length)
+        # todo
         all_grids = cell_generator.generate_spatiotemporal_cells() 
         
         # Reads the input .csv file 
@@ -42,6 +44,8 @@ def main():
         max_trajectory_length = arg_processor.max_trajectory_length
         file_reader = FileReader()
         traj_nums = [arg_processor.num_train, arg_processor.num_val]
+        # 返回的是[训练集，验证集]
+        # 数据集去除了轨迹序列中不在范围内的点，并且长度也满足在一定范围
         all_traj = file_reader.read_trajectory_from_file(input_file_path, 
                                                          dataset_mode, 
                                                          min_trajectory_length, 
@@ -52,12 +56,13 @@ def main():
         # First loop through the raw trajectories 
         print("Processing raw trajectories.")
         traj_processor = TrajProcessor()
-        point_drop_rates = arg_processor.point_drop_rates
-        spatial_distortions = arg_processor.spatial_distortion_rates
-        temporal_distortions = arg_processor.temporal_distortions
+        point_drop_rates = arg_processor.point_drop_rates # 下采样概率
+        spatial_distortions = arg_processor.spatial_distortion_rates # 空间失真
+        temporal_distortions = arg_processor.temporal_distortions # 时间失真
         span = arg_processor.span 
         stride = arg_processor.stride 
-        [all_train, all_validation] = all_traj 
+        [all_train, all_validation] = all_traj
+        # [原始轨迹、 真实轨迹的特征]、下采样轨迹
         all_train_pairs = traj_processor.first_loop(all_train,
                                                     point_drop_rates, 
                                                     spatial_distortions, 
@@ -73,7 +78,8 @@ def main():
                                                          bounding_box_coords,
                                                          span, stride)
 
-        # Get the hot cells 
+        # Get the hot cells
+        # 获取热点数据，以后只关注热点数据
         print("Getting hot cells")
         cell_processor = CellProcessor()
         hot_cells_threshold = arg_processor.hot_cells_threshold
@@ -82,12 +88,16 @@ def main():
         # Getting the top-k closest cells for each cell 
         print("Getting top-k cells")
         k = arg_processor.k
+        # 返回热点数据的映射关系，以及对应的地点和时间[映射关系(id->cell_id),[坐标和时间]]
         [key_lookup_dict,centroids] = cell_processor.split_hot_cells_dict(hot_cells)
+        # 计算每个点的topK点的id和与其的距离
         [topk_id, topk_weight] = cell_processor.get_top_k_cells(centroids, k)
                                                          
-        # Second loop through the dataset 
+        # Second loop through the dataset
+        # 缩小最短长度为下采样保留下来的
         min_query_length =round((1-max(point_drop_rates))*min_trajectory_length)
-        all_train_pairs = traj_processor.second_loop(all_train_pairs, 
+        # 删除非热点数据
+        all_train_pairs = traj_processor.second_loop(all_train_pairs,
                                                      key_lookup_dict,
                                                      min_trajectory_length,
                                                      min_query_length)
@@ -98,6 +108,8 @@ def main():
         
         # Preparing the data for printing 
         print("Preparing training data")
+        # 展开[第几个数据，[原始数据，根据原始数据获取的模式特征，下采样的一条轨迹数据]]
+        # 原始数据包含 cell_id, point时空位置, 立方体位置
         train_data = traj_processor.flatten_traj_pairs(all_train_pairs)
         train_data = traj_processor.process_training_data(train_data)
         print("Preparing validation data")
@@ -118,6 +130,7 @@ def main():
         val_y_name = arg_processor.val_y_name
         val_log_name = arg_processor.val_log_name
         val_segment_size = arg_processor.val_segment_size
+        # train_data
         writer.write_train_data(train_data, train_x_name, 
                                 train_y_name, train_log_name, output_directory, 
                                 train_segment_size, arg_processor.num_train)
@@ -132,13 +145,16 @@ def main():
         topk_log_name = arg_processor.topk_log_name
         cell_dict_name = arg_processor.cell_dict_name
         all_cells_name = arg_processor.all_cells_name
-        print("Writing top-k ID and top-k weights data") 
+        print("Writing top-k ID and top-k weights data")
+        # topk_id, topk_weight
         writer.write_topk(topk_id, topk_weight, topk_id_name, topk_weight_name, 
                           topk_log_name, output_directory)
         
         # All cells data 
-        print("Writing spatiotemporal cell data to files") 
+        print("Writing spatiotemporal cell data to files")
+        # key_lookup_dict
         writer.write_cell_dict(key_lookup_dict, cell_dict_name, output_directory)
+        # all_grids
         writer.write_cells(all_grids, all_cells_name, output_directory)
     
         # Finally, create a copy of the .ini file to the output directory
