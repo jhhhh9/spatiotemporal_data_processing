@@ -20,6 +20,7 @@ class ArgProcessor():
         config = configparser.ConfigParser()
         config.read(ini_path)
         self.__MINUTES_IN_A_DAY = 1440 
+        self.__SECONDS_IN_A_DAY = self.__MINUTES_IN_A_DAY * 60
         
         ## MODE section 
         self.process_train_val = config['MODE']['ProcessTrainVal']
@@ -47,7 +48,7 @@ class ArgProcessor():
         if not os.path.exists(self.output_directory):
             os.mkdir(self.output_directory)
         # Check data mode validity 
-        self.dataset_modes = ['porto', 'didi']
+        self.dataset_modes = ['porto', 'didi', 'hz']
         if self.dataset_mode not in self.dataset_modes:
             raise ValueError("'" + self.dataset_mode + "' is not one of the " + 
                              "valid dataset modes.")
@@ -101,10 +102,14 @@ class ArgProcessor():
         self.val_x_name = config['TRAINVAL']['ValXName']
         self.val_y_name = config['TRAINVAL']['ValYName']
         self.val_log_name = config['TRAINVAL']['ValLogName']
+        self.test_x_name = config['TRAINVAL']['TestXName']
+        self.test_y_name = config['TRAINVAL']['TestYName']
+        self.test_log_name = config['TRAINVAL']['TestLogName']
         self.num_train = int(config['TRAINVAL']['NumTrain'])
         self.train_segment_size = int(config['TRAINVAL']['TrainSegmentSize'])
         self.val_segment_size = int(config['TRAINVAL']['ValSegmentSize'])
         self.num_val = int(config['TRAINVAL']['NumVal'])
+        self.num_test = int(config['TRAINVAL']['NumTest'])
         self.point_drop_rates = ast.literal_eval(config['TRAINVAL']
                                                        ['PointDropRates'])
         self.spatial_distortion_rates = ast.literal_eval(config['TRAINVAL']
@@ -112,10 +117,12 @@ class ArgProcessor():
         self.temporal_distortions = ast.literal_eval(config['TRAINVAL']
                                                     ['TemporalDistortions'])
         ## Check validity 
-        if self.num_train <= 0: 
+        if self.num_train < 0: 
             raise ValueError("NumTrain must be greater than 0")
-        if self.num_val <= 0:
+        if self.num_val < 0:
             raise ValueError("NumVal must be greater than 0")
+        if self.num_test < 0:
+            raise ValueError("NumTest must be greater than 0")
         for x in self.point_drop_rates:
             if x < 0 or x > 1:
                 raise ValueError("All values in PointDropRates must be " +

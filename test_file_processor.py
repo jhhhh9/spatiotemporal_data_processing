@@ -8,13 +8,14 @@ import copy
 import math 
 import numpy as np 
 import random 
+import h5py
 from datetime import datetime
 from operator import itemgetter
 from shapely.geometry import Point, Polygon 
 
 class TestFileProcessor():
     def __init__(self, input_file_path, line_start, bbox_coords, all_grids,
-                 key_lookup_dict):
+                 key_lookup_dict, dataset_mode):
         """
         Initializes the file reader. line_start determine the number of line
         to start reading, because all the previous lines have been read in the 
@@ -29,11 +30,16 @@ class TestFileProcessor():
             all_grids: (numpy array) Array of all grids and their corresponding
                         information such as its centroid and its coordinates. 
         """
-        self.file = open(input_file_path)
-        for self.num_line, line in enumerate(self.file):
-            if self.num_line == line_start:
-                break 
-        self.file = open(input_file_path)
+
+        if dataset_mode == 'porto' or dataset_mode == 'didi':
+            self.file = open(input_file_path)
+            for self.num_line, line in enumerate(self.file):
+                if self.num_line == line_start:
+                    break 
+        elif dataset_mode == 'hz':
+            self.file = h5py.File(input_file_path, "r")
+            self.num_line = 0
+            self.num_lines = self.file.attrs.get("num")[0]
         [self.min_lat, self.min_lng, self.max_lat, self.max_lng] = bbox_coords 
         self.bbox = Polygon([(self.min_lat, self.min_lng), 
                              (self.max_lat, self.min_lng), 
@@ -78,23 +84,31 @@ class TestFileProcessor():
         list_traj_2 = []
         list_traj_1_raw = []
         list_traj_2_raw = []
-        self.file.readline()
         # Continue reading the file--processing and adding trajectories to 
         # list_traj_1 and 2--until both lists are of sufficient length. 
         while len(list_traj_1) < num_data:
             # Reads line to get the trajectory 
-            line = self.file.readline()
-            self.num_line += 1
             if dataset_mode.lower() == 'porto':
                 # Due to the trajectories being split to two later, we need to 
                 # double min_traj_len here 
+                line = self.file.readline()
+                self.num_line += 1
                 new_traj = self.__process_csv_porto(line, min_traj_len * 2, 
                                                     max_traj_len)
             elif dataset_mode.lower() == 'didi':
                 # Due to the trajectories being split to two later, we need to 
                 # double min_traj_len here 
+                line = self.file.readline()
+                self.num_line += 1
                 new_traj = self.__process_csv_didi(line, min_traj_len * 2, 
                                                    max_traj_len)
+            elif dataset_mode.lower() == 'hz':
+                trip = self.file["trips"][str(self.num_line + 1)]
+                timestamp = self.file["timestamps"][str(self.num_line + 1)]
+                self.num_line += 1
+                new_traj = self.__process_csv_hz(trip, timestamp, min_traj_len * 2, 
+                                                   max_traj_len)
+                
             else:
                 assert False, "NOT IMPLEMENTED"
             
@@ -239,8 +253,39 @@ class TestFileProcessor():
                 return new_traj 
         # If the code reaches this point, then new_traj is not of the right 
         # length. We return None 
-        return None 
+        return None
 
+    def __process_csv_hz(self, trip, timestamp, min_trajectory_length,
+                           max_trajectory_length):
+        """
+        Reads the didi trajectory file line-by-line. Also keep track of the 
+        actual number of lines read 
+
+        Args:
+            line: (string) The line from the .csv file to process 
+            min_trajectory_length: (Integer) The shortest allowable trajectory 
+                                   length 
+            max_trajectory_length: (Integer) The longest allowable trajectory 
+                                   length 
+        Returns:    
+            Trajectory read from the provided line 
+        """
+        # Only process the trajectory further if it's not too long or too 
+        # short 
+        if (len(trip) <= max_trajectory_length and
+                len(trip) >= min_trajectory_length):
+            # Process the trajectory by checking coordinates and adding 
+            # timestamp 
+            trajectory = []
+            for ((lon, lat), time) in zip(trip, timestamp):
+                trajectory.append([lat, lon, time])
+            
+            new_traj = self.__check_point(trajectory)
+            if len(new_traj) >= min_trajectory_length:
+                return new_traj
+                # If the code reaches this point, then new_traj is not of the right 
+        # length. We return None 
+        return None
 
     def __check_point_and_add_timestamp_porto(self, trajectory, start_second):
         """
@@ -625,10 +670,10 @@ class TestFileProcessor():
             
             # Distortions can cause the trajectory to go over the max. number 
             # of minutes in a day, or go to the negatives. We address both.
-            if traj_point[2] >= self.__MINUTES_IN_DAY:
-                traj_point[2] -= self.__MINUTES_IN_DAY
+            if traj_point[2] >= self.__SECONDS_IN_DAY:
+                traj_point[2] -= self.__SECONDS_IN_DAY
             if traj_point[2] < 0:
-                traj_point[2] += self.__MINUTES_IN_DAY
+                traj_point[2] += self.__SECONDS_IN_DAY
 
 
     def __split_id_and_traj(self, trajectory):

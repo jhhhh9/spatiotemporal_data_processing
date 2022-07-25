@@ -6,6 +6,7 @@ from shapely.geometry import Point
 from shapely.geometry import Polygon 
 import ast 
 import numpy as np 
+import h5py
 
 import pathlib 
 
@@ -66,16 +67,23 @@ class FileReader():
         
         # Read the .csv file line-by-line and process it according to the 
         # data_mode 
-        in_file = open(in_path, 'r')
         if dataset_mode == 'porto':
-            return(self.__read_porto(in_file, min_trajectory_length, 
+            in_file = open(in_path, 'r')
+            res = (self.__read_porto(in_file, min_trajectory_length, 
                                      max_trajectory_length, traj_nums))
+            in_file.close()
+            return res
         elif dataset_mode == 'didi': # 目前的 读取滴滴数据
-            return(self.__read_didi(in_file, min_trajectory_length, 
+            in_file = open(in_path, 'r')
+            res = (self.__read_didi(in_file, min_trajectory_length, 
+                                     max_trajectory_length, traj_nums))
+            in_file.close()
+            return res
+        elif dataset_mode == 'hz': # 读取杭州数据
+            return(self.__read_hangzhou(in_path, min_trajectory_length, 
                                      max_trajectory_length, traj_nums))
         else:
             raise ValueError("'" + dataset_mode + "' not supported.")
-        in_file.close()
     
 
     def read_npy(self, input_directory, file_name):
@@ -118,7 +126,7 @@ class FileReader():
         in_file.readline()
         
         # Get the lines into the training, and validation lists
-        [num_train, num_validation] = traj_nums
+        [num_train, num_validation, num_test] = traj_nums
         all_train = []
         all_validation = []
         
@@ -182,7 +190,7 @@ class FileReader():
         
         # Get the lines into the training and validation lists
         # 训练集和验证集数量
-        [num_train, num_validation] = traj_nums
+        [num_train, num_validation, num_test] = traj_nums
         all_train = []
         all_validation = []
         
@@ -226,7 +234,78 @@ class FileReader():
                     else:
                         break 
         return [all_train, all_validation]
-        
+
+    def __read_hangzhou(self, in_path, min_trajectory_length,
+                    max_trajectory_length, traj_nums):
+        """
+        Reads the didi trajectory file line-by-line. Also keep track of the 
+        actual number of lines read 
+
+        Args:
+            in_file: (file) The input didi trajectory file 
+            min_trajectory_length: (Integer) The shortest allowable trajectory 
+                                   length 
+            max_trajectory_length: (Integer) The longest allowable trajectory 
+                                   length 
+            traj_nums: (list of integers) A list containing the number of 
+                        trajectories for each training and validation data
+        Returns:    
+            A list of trajectories, and the actual number of lines read. Each 
+            trajectory is a list consisting of latitude, longitude and timestamp 
+            in the form of minutes-in-day
+        """
+        # Throws away the .csv header and then read line-by-line 
+        # Get the lines into the training and validation lists
+        # 训练集和验证集数量
+        [num_train, num_validation, num_test] = traj_nums
+        all_train = []
+        all_validation = []
+        all_test = []
+        labels_train = []
+        labels_validation = []
+        labels_test = []
+
+        # Need to keep track of the actual number of lines read 
+        with h5py.File(in_path, "r") as f:        
+            num_lines = f.attrs.get("num")[0] # 该文件下轨迹数量
+            # 读取每行
+            for i in range(num_lines):
+                trip = f["trips"][str(i + 1)]  # 第 i 条路径
+                # Only process the trajectory further if it's not too long or too 
+                # 排除不满足条件的轨迹序列
+                if not (min_trajectory_length <= len(trip) <= max_trajectory_length):
+                    continue
+                timestamp = f["timestamps"][str(i + 1)]
+                trajectory = []
+                for ((lon, lat), time) in zip(trip, timestamp):
+                    trajectory.append([lat, lon, time])
+                new_traj = self.__check_point(trajectory)
+                # The new trajectory may be shorter because points outside of 
+                # the area are removed. If it is now shorter, we ignore it
+                # 再次判断长度
+                if (len(new_traj) >= min_trajectory_length):
+                    # Add to either the training, or validation list
+                    # 分为训练集和验证集，多余的不要
+                    # label = f["labels"][str(i + 1)]
+                    label = int(f["labels/%d" % (i + 1)][()])
+                    if i < num_train:
+                        all_train.append(new_traj)
+                        labels_train.append(label)
+                        if i % 1000 == 0:
+                            print("READING TRAINING DATA %d" % (i))
+                    elif i < num_validation + num_train:
+                        all_validation.append(new_traj)
+                        labels_validation.append(label)
+                        if i % 1000 == 0:
+                            print("READING VALIDATION DATA %d" % (i))
+                    elif i < num_validation + num_train + num_test:
+                        all_test.append(new_traj)
+                        labels_test.append(label)
+                        if i % 1000 == 0:
+                            print("READING VALIDATION DATA %d" % (i))
+                    else:
+                        break
+        return [all_train, all_validation, all_test, labels_train, labels_validation, labels_test]
     """
     对轨迹序列进行处理转换
     Point是shapely.XX包中的对象类

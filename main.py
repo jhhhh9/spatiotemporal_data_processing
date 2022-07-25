@@ -28,6 +28,7 @@ def main():
         # Generate the spatiotemporal cells 
         print("Generating spatiotemporal cells")
         bounding_box_coords = arg_processor.bounding_box_coords  # 研究范围
+        # todo:调整
         spatial_grid_lat = arg_processor.spatial_grid_lat
         spatial_grid_lng = arg_processor.spatial_grid_lng
         temporal_grid_length = arg_processor.temporal_grid_length
@@ -43,7 +44,7 @@ def main():
         min_trajectory_length = arg_processor.min_trajectory_length
         max_trajectory_length = arg_processor.max_trajectory_length
         file_reader = FileReader()
-        traj_nums = [arg_processor.num_train, arg_processor.num_val]
+        traj_nums = [arg_processor.num_train, arg_processor.num_val, arg_processor.num_test]
         # 返回的是[训练集，验证集]
         # 数据集去除了轨迹序列中不在范围内的点，并且长度也满足在一定范围
         all_traj = file_reader.read_trajectory_from_file(input_file_path, 
@@ -61,7 +62,12 @@ def main():
         temporal_distortions = arg_processor.temporal_distortions # 时间失真
         span = arg_processor.span 
         stride = arg_processor.stride 
-        [all_train, all_validation] = all_traj
+        if dataset_mode == 'hz':
+            [all_train, all_validation, all_test, labels_train, labels_validation, labels_test] = all_traj
+        else:
+            [all_train, all_validation] = all_traj
+            labels_train = None
+            labels_validation = None
         # [原始轨迹、 真实轨迹的特征]、下采样轨迹
         all_train_pairs = traj_processor.first_loop(all_train,
                                                     point_drop_rates, 
@@ -69,22 +75,31 @@ def main():
                                                     temporal_distortions,
                                                     all_grids, 
                                                     bounding_box_coords,
-                                                    span, stride)
+                                                    span, stride, labels_train)
         all_validation_pairs = traj_processor.first_loop(all_validation,
                                                          point_drop_rates, 
                                                          spatial_distortions, 
                                                          temporal_distortions,
                                                          all_grids, 
                                                          bounding_box_coords,
-                                                         span, stride)
+                                                         span, stride, labels_validation)
+        if dataset_mode == 'hz':
+            all_test_pairs = traj_processor.first_loop(all_test,
+                                                     point_drop_rates, 
+                                                     spatial_distortions, 
+                                                     temporal_distortions,
+                                                     all_grids, 
+                                                     bounding_box_coords,
+                                                     span, stride, labels_test)
 
         # Get the hot cells
         # 获取热点数据，以后只关注热点数据
         print("Getting hot cells")
         cell_processor = CellProcessor()
         hot_cells_threshold = arg_processor.hot_cells_threshold
-        hot_cells = cell_processor.get_hot_cells(all_grids, hot_cells_threshold)
-        
+        hot_cells, spatio_cells = cell_processor.get_hot_cells(all_grids, hot_cells_threshold)
+        hot_cells_num = len(hot_cells)
+        spatio_cells_num = len(spatio_cells)
         # Getting the top-k closest cells for each cell 
         print("Getting top-k cells")
         k = arg_processor.k
@@ -105,6 +120,11 @@ def main():
                                                           key_lookup_dict,
                                                           min_trajectory_length,
                                                           min_query_length)
+        if dataset_mode == 'hz':
+            all_test_pairs = traj_processor.second_loop(all_test_pairs, 
+                                                              key_lookup_dict,
+                                                              min_trajectory_length,
+                                                              min_query_length)
         
         # Preparing the data for printing 
         print("Preparing training data")
@@ -115,6 +135,10 @@ def main():
         print("Preparing validation data")
         val_data = traj_processor.flatten_traj_pairs(all_validation_pairs)
         val_data = traj_processor.process_training_data(val_data)
+        if dataset_mode == 'hz':
+            print("Preparing test data")
+            test_data = traj_processor.flatten_traj_pairs(all_test_pairs)
+            test_data = traj_processor.process_training_data(test_data)
         
         # Write all outputs to files 
         print("Writing output files for train+val processing") 
@@ -130,13 +154,20 @@ def main():
         val_y_name = arg_processor.val_y_name
         val_log_name = arg_processor.val_log_name
         val_segment_size = arg_processor.val_segment_size
+        test_x_name = arg_processor.test_x_name
+        test_y_name = arg_processor.test_y_name
+        test_log_name = arg_processor.test_log_name
         # train_data
         writer.write_train_data(train_data, train_x_name, 
                                 train_y_name, train_log_name, output_directory, 
-                                train_segment_size, arg_processor.num_train)
+                                train_segment_size, arg_processor.num_train, "1_training_label")
         writer.write_train_data(val_data, val_x_name, 
                                 val_y_name, val_log_name, output_directory, 
-                                val_segment_size, arg_processor.num_val)
+                                val_segment_size, arg_processor.num_val, "1_validation_label")
+        if dataset_mode == 'hz':
+            writer.write_train_data(test_data, test_x_name, 
+                                    test_y_name, test_log_name, output_directory, 
+                                    -1, arg_processor.num_test, "1_test_label")
                                 
                                 
         # Top-k cells data 
@@ -150,6 +181,9 @@ def main():
         writer.write_topk(topk_id, topk_weight, topk_id_name, topk_weight_name, 
                           topk_log_name, output_directory)
         
+        print("hot cell num is :", hot_cells_num)
+        print("spatio of hot cell num is :", spatio_cells_num)
+
         # All cells data 
         print("Writing spatiotemporal cell data to files")
         # key_lookup_dict
@@ -174,7 +208,7 @@ def main():
             
         # Read the .csv file for the test data. Start reading where 
         # the data reading for the train+val left off. 
-        line_start = arg_processor.num_train + arg_processor.num_val
+        line_start = 0#arg_processor.num_train + arg_processor.num_val
     
         # Initializes the file reader 
         input_file_path = arg_processor.input_file_path
@@ -182,7 +216,7 @@ def main():
         dataset_mode = arg_processor.dataset_mode
         test_processor = TestFileProcessor(input_file_path, line_start, 
                                            bbox_coords, all_grids, 
-                                           key_lookup_dict)
+                                           key_lookup_dict, dataset_mode)
         
         # Start with reading the query data
         num_q = arg_processor.num_q 
@@ -193,7 +227,7 @@ def main():
         min_traj_len = arg_processor.min_trajectory_length
         max_traj_len = arg_processor.max_trajectory_length
         dataset_mode = arg_processor.dataset_mode
-        q_start_ID = num_q 
+        q_start_ID = num_q # todo ?
         [q, qdb, qraw, qdbraw] = test_processor.process_data(num_q,dataset_mode, 
                                                              min_traj_len, 
                                                              max_traj_len, 

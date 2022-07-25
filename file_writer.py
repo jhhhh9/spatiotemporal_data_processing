@@ -13,7 +13,7 @@ class FileWriter():
     """
     def write_train_data(self, data, file_name_x, file_name_y, 
                          file_name_log, output_directory, train_segment_size,
-                         num_lines):
+                         num_lines, file_name_label):
         """
         Writes the training data to files in the specified directory.
         
@@ -37,31 +37,42 @@ class FileWriter():
         # data_x and data_y are generators, but we need them in numpy arrays 
         data_x = []
         data_y = []
+        data_label = []
         for x in data:
             data_x.append(x[0])
             data_y.append(x[1])
+            data_label.append(x[2])
         data_x = np.array(data_x)
         data_y = np.array(data_y)
+        data_label = np.array(data_label)
+        # data_x = np.array(data_x)
+        # data_y = np.array(data_y)
 
         data_x = data_x[0]
         data_y = data_y[0]
+        data_label = data_label[0]
         
         # Writes to .npy files
         # If train_segment_size is <= 0, print to one file 
         if train_segment_size <= 0:
             output_path_x = pathlib.Path(output_directory) / (file_name_x)
             output_path_y = pathlib.Path(output_directory) / (file_name_y)
+            output_path_label = pathlib.Path(output_directory) / (file_name_label)
             np.save(output_path_x, data_x)
             np.save(output_path_y, data_y)
+            np.save(output_path_label, data_label)
         else:
             # If not, create a nested directory that will contain the training
             # data segments 
             out_dir_x = output_directory + "/" + file_name_x
             out_dir_y = output_directory + "/" + file_name_y
+            out_dir_label = output_directory + "/" + file_name_label
             if not os.path.exists(out_dir_x):
                 os.mkdir(out_dir_x)
             if not os.path.exists(out_dir_y):
                 os.mkdir(out_dir_y)
+            if not os.path.exists(out_dir_label):
+                os.mkdir(out_dir_label)
             
             # Get num. of leading zeroes for the training files naming 
             n_zero = len(str(math.ceil(len(data_x) / train_segment_size)))
@@ -73,10 +84,13 @@ class FileWriter():
                 seg_num += 1
                 seg_name_x = file_name_x + "_" + str(seg_num).zfill(n_zero)
                 seg_name_y = file_name_y + "_" + str(seg_num).zfill(n_zero)
+                seg_name_label = file_name_label + "_" + str(seg_num).zfill(n_zero)
                 output_path_x = pathlib.Path(out_dir_x) / seg_name_x
                 output_path_y = pathlib.Path(out_dir_y) / seg_name_y
+                output_path_label = pathlib.Path(out_dir_label) / seg_name_label
                 np.save(output_path_x, data_x[seg_sta:seg_end])
                 np.save(output_path_y, data_y[seg_sta:seg_end])
+                np.save(output_path_label, data_label[seg_sta:seg_end])
                 seg_sta += train_segment_size
                 seg_end += train_segment_size
                 
@@ -86,6 +100,8 @@ class FileWriter():
             f.write("Dataset contents: 'data_x', 'data_y'" )
             f.write("\ndata_x shape: " + str(data_x.shape))
             f.write("\ndata_y shape: " + str(data_y.shape))
+            # f.write("\ndata_x len: " + str(len(data_x)))
+            # f.write("\ndata_y len: " + str(len(data_y)))
             f.write("\nLines read: " + str(num_lines))
         
     

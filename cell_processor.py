@@ -27,7 +27,7 @@ class CellProcessor():
             A dict containing all the hot cells 
         """
         hot_cells = {}
-        
+        spatio_cells = {}
         # Iterate through all cells   
         for x in all_cells:
             for y in x:
@@ -38,8 +38,11 @@ class CellProcessor():
                         cell_id = cell['cell_id']
                         s_centroid = cell['s_centroid']
                         t_centroid = cell['t_centroid']
+                        sp = str.split(cell_id, '_')
+                        s = sp[0]+"_"+sp[1]
+                        spatio_cells[s] = s_centroid
                         hot_cells[cell_id] = s_centroid + [t_centroid]
-        return hot_cells 
+        return hot_cells, spatio_cells
 
 
     def split_hot_cells_dict(self, hot_cells):

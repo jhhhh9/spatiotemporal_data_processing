@@ -33,6 +33,7 @@ class CellGenerator():
         
         # Constants for later calculations 
         self.__MINUTES_IN_A_DAY = 1440 
+        self.__SECONDS_IN_A_DAY = self.__MINUTES_IN_A_DAY * 60
         self.__R_EARTH = 6378.137
         self.__M = (1 / ((2 * math.pi / 360) * self.__R_EARTH)) / 1000 
         
@@ -67,7 +68,7 @@ class CellGenerator():
                                       self.spatial_grid_lng)
             all_lng.append((cur_lng, next_lng))
             cur_lng = next_lng 
-        while cur_time < self.__MINUTES_IN_A_DAY:
+        while cur_time < self.__SECONDS_IN_A_DAY:
             next_time = cur_time + self.temporal_grid_length
             all_timestamp.append((cur_time, next_time-1))
             cur_time = next_time 
@@ -75,6 +76,8 @@ class CellGenerator():
         # Create the 3D grids 
         all_grids = []
         for i in range(len(all_lat)):
+            if i % 10 == 0:
+                print("create cell of lat_", i)
             grid_lat = []
             for j in range(len(all_lng)):
                 grid_lng = []
@@ -131,7 +134,7 @@ class CellGenerator():
             This is scaled to the range 0 to 1. 
         """
         center = (time_pair[1] + time_pair[0]) / 2
-        scaled_center = center / self.__MINUTES_IN_A_DAY
+        scaled_center = center / self.__SECONDS_IN_A_DAY
         return scaled_center 
     
     

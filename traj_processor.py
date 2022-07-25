@@ -21,11 +21,12 @@ class TrajProcessor():
         Initializes several important constants 
         """
         self.__MINUTES_IN_DAY = 1440
+        self.__SECONDS_IN_A_DAY = self.__MINUTES_IN_DAY * 60
         self.__R_EARTH = 6378137
         
 
     def first_loop(self, all_traj, point_drop_rates, spatial_distortions, 
-                   temporal_distortions, all_cells, bbox_coords, span, stride):
+                   temporal_distortions, all_cells, bbox_coords, span, stride, labels):
         """
         The first loop through the whole dataset performs several tasks:
         1. Generate query trajectories from ground truth by downsampling it 
@@ -64,6 +65,8 @@ class TrajProcessor():
         
         # Iterate through all trajectories
         # 遍历所有的轨迹序列
+        if labels == None:
+            labels = np.zeros(len(all_traj))
         all_pairs = []
         for i in range(len(all_traj)):
             print("Processing trajectory (1st loop) " + str(i+1) + " out of " +
@@ -104,7 +107,7 @@ class TrajProcessor():
                                                            all_ranges)
             gt_data = [gt_traj_grid, gt_patt_features]
             # 原始轨迹、 真实轨迹的特征、下采样轨迹
-            all_pairs.append([gt_data, all_cur_traj_q])
+            all_pairs.append([gt_data, all_cur_traj_q, labels[i]])
         return all_pairs 
 
 
@@ -141,7 +144,7 @@ class TrajProcessor():
             i += 1
             print("Processing trajectory (2nd loop) " + str(i) + " out of " +
                    str(len(all_traj_pairs)))
-            [gt, all_q] = all_traj_pairs.pop()
+            [gt, all_q, label] = all_traj_pairs.pop()
             # 在gt中移除不是热点数据ID的，所以取[0]
             new_gt = self.__remove_non_hot_cells(gt[0], key_lookup_dict)
             
@@ -156,7 +159,7 @@ class TrajProcessor():
                         new_q.append(q_)
                 if len(new_q) > 0:
                     # 轨迹特征模式还是不变，与热点无关
-                    yield [[new_gt, np.array(gt[1])], new_q]
+                    yield [[new_gt, np.array(gt[1])], new_q, label]
         """
         new_all_traj_pairs = []
         for i in range(len(all_traj_pairs)):
@@ -255,9 +258,9 @@ class TrajProcessor():
         id = 0 
         for one_pair in all_traj_pairs:
             print("Flattening trajectory pairs: %d" % (id))
-            [[gt, gt_patt], q] = copy.deepcopy(one_pair)
+            [[gt, gt_patt], q, label] = copy.deepcopy(one_pair)
             for one_q in q:
-                yield [id, [gt, gt_patt, one_q]]
+                yield [id, [gt, gt_patt, one_q], label]
             id += 1
         
         
@@ -290,11 +293,12 @@ class TrajProcessor():
         """
         all_x = []
         all_y = []
+        all_label = []
         num_traj = 0 
         for one_pair in all_pairs:
             num_traj += 1
             print("Processing train/val data: %d" % (num_traj))
-            [_, [gt, gt_patt, q]] = one_pair
+            [_, [gt, gt_patt, q], label] = one_pair
             # 提取原始数据序列的id
             gt = self.__keep_id_only(gt)
             gt_patt_s = np.array([np.array(x[[0]]) for x in gt_patt])
@@ -303,12 +307,19 @@ class TrajProcessor():
             q = self.__keep_id_only(q)
             
             # Form the X and then y and then append  
-            one_x = np.array([gt, q, gt_patt_s, gt_patt_t])
-            one_y = np.array([gt, gt_patt_s, gt_patt_t])
+            one_x = np.empty((4,), dtype = object)
+            one_y = np.empty((3,), dtype = object)
+            one_x[:] = [gt, q, gt_patt_s, gt_patt_t]
+            one_y[:] = [gt, gt_patt_s, gt_patt_t]
             all_x.append(one_x)
             all_y.append(one_y)
-        yield [np.array(all_x), np.array(all_y)]
-        
+            all_label.append(label)
+        yield [np.array(all_x), np.array(all_y), np.array(all_label)]
+        # res_x = np.empty(len(all_x), dtype=object)
+        # res_y = np.empty(len(all_y), dtype=object)
+        # res_x[:] = all_x
+        # res_y[:] = all_y
+        # yield [res_x, res_y]
 
     def __remove_non_hot_cells(self, trajectory, key_lookup_dict):
         """
@@ -581,9 +592,9 @@ class TrajProcessor():
             A list of floats for the sin and cos feature of the timestamp. 
         """
         seconds_sin = (math.sin(2 * math.pi * timestamp / \
-                                self.__MINUTES_IN_DAY) + 1) / 2
+                                self.__SECONDS_IN_A_DAY) + 1) / 2
         seconds_cos = (math.cos(2 * math.pi * timestamp / \
-                                self.__MINUTES_IN_DAY) + 1) / 2
+                                self.__SECONDS_IN_A_DAY) + 1) / 2
         return [seconds_sin, seconds_cos]
         
         
@@ -681,7 +692,7 @@ class TrajProcessor():
         """
         all_ranges = []
         cur_timestamp = 0
-        while cur_timestamp + span <= self.__MINUTES_IN_DAY:
+        while cur_timestamp + span <= self.__SECONDS_IN_A_DAY:
             all_ranges.append(range(cur_timestamp, cur_timestamp + span))
             cur_timestamp += stride 
         return all_ranges
@@ -841,7 +852,7 @@ class TrajProcessor():
             # of minutes in a day, or go to the negatives. We address both.
             # 当超出时间范围，回到初始
             # 当小于最小，从末尾回退
-            if traj_point[2] >= self.__MINUTES_IN_DAY:
-                traj_point[2] -= self.__MINUTES_IN_DAY
+            if traj_point[2] >= self.__SECONDS_IN_A_DAY:
+                traj_point[2] -= self.__SECONDS_IN_A_DAY
             if traj_point[2] < 0:
-                traj_point[2] += self.__MINUTES_IN_DAY
+                traj_point[2] += self.__SECONDS_IN_A_DAY
